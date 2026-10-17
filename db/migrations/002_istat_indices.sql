@@ -1,0 +1,51 @@
+-- ISTAT revaluation coefficients, one row per effective date.
+-- A contract signed on date D uses the row with the greatest valid_from <= D.
+create table istat_indices (
+    valid_from date primary key,
+    coefficient numeric(7, 4) not null check (coefficient > 0),
+    created_by uuid references users (id) on delete set null,
+    created_at timestamptz not null default now(),
+    updated_by uuid references users (id) on delete set null,
+    updated_at timestamptz not null default now()
+);
+
+-- Initial values imported from the Excel workbook (Prospetto/Attestazione V3.1).
+insert into istat_indices (valid_from, coefficient) values
+    ('2020-11-01', 1.000),
+    ('2023-10-07', 1.168),
+    ('2023-11-01', 1.170),
+    ('2023-12-01', 1.169),
+    ('2024-01-01', 1.164),
+    ('2024-02-01', 1.166),
+    ('2024-03-01', 1.170),
+    ('2024-04-01', 1.170),
+    ('2024-05-01', 1.171),
+    ('2024-06-01', 1.170),
+    ('2024-07-01', 1.172),
+    ('2024-08-01', 1.172),
+    ('2024-09-01', 1.176),
+    ('2024-10-01', 1.177),
+    ('2024-11-01', 1.176),
+    ('2024-12-01', 1.177),
+    ('2025-01-01', 1.177),
+    ('2025-02-01', 1.178),
+    ('2025-03-01', 1.185),
+    ('2025-04-01', 1.187),
+    ('2025-05-01', 1.190),
+    ('2025-06-01', 1.189),
+    ('2025-07-01', 1.188),
+    ('2025-08-01', 1.189),
+    ('2025-09-01', 1.194),
+    ('2025-10-01', 1.194),
+    ('2025-11-01', 1.193),
+    ('2025-12-01', 1.190),
+    ('2026-01-01', 1.189),
+    ('2026-02-01', 1.191),
+    ('2026-03-01', 1.195),
+    ('2026-04-01', 1.201),
+    ('2026-05-01', 1.208),
+    ('2026-06-01', 1.220),
+    ('2026-07-01', 1.224),
+    ('2026-08-01', 1.224),
+    ('2026-09-01', 1.227),
+    ('2026-10-01', 1.234);

@@ -1,0 +1,377 @@
+import type { Content, ContentTable, TableCell, TDocumentDefinitions } from "pdfmake/interfaces";
+import type { AccordDefinition, CalculationResult, ClassificationParameter, Fascia } from "#lib/accords/types.ts";
+import type { DocumentData, DocumentKind } from "#lib/documents/types.ts";
+import { formatDate, formatMoney, formatNumber, formatPercent } from "#lib/format.ts";
+import { ORGANIZATION } from "./organization.ts";
+
+export interface PdfInput {
+    kind: DocumentKind;
+    accord: AccordDefinition;
+    data: DocumentData;
+    /** Must be a complete calculation (no issues). */
+    result: CalculationResult;
+    /** Logo as a data URL. */
+    logo: string;
+}
+
+const BLANK = "…………………………";
+const FASCIA_LABELS: Record<Fascia, string> = { minima: "MINIMA", media: "MEDIA", massima: "MASSIMA" };
+
+const filled = (value: string | number | null | undefined, fallback = BLANK) =>
+    value === null || value === undefined || value === "" ? fallback : String(value);
+
+const heading = (text: string): Content => ({ text, style: "heading", margin: [0, 8, 0, 3] });
+
+const keyValueRow = (label: string, value: string): TableCell[] => [
+    { text: label },
+    { text: value, alignment: "right", bold: true },
+];
+
+const lightLines = {
+    hLineColor: () => "#cccccc",
+    vLineColor: () => "#cccccc",
+    paddingTop: () => 2,
+    paddingBottom: () => 2,
+};
+
+function surfaceTable({ accord, result }: Pick<PdfInput, "accord" | "result">): ContentTable {
+    const surface = result.surface!;
+    const rows: TableCell[][] = [];
+
+    for (const line of surface.lines) {
+        rows.push([
+            { text: line.label },
+            { text: `${formatNumber(line.area)} mq`, alignment: "right" },
+            { text: line.id === "net" ? "(100%)" : `(${formatNumber(line.coefficient * 100, 0)}%)`, alignment: "right" },
+            { text: `${formatNumber(line.convertedArea)} mq`, alignment: "right" },
+        ]);
+        if (line.id === "net" && accord.smallUnitBonus) {
+            rows.push([
+                { text: "Maggiorazione per superficie inferiore o uguale a mq. 60:" },
+                { text: "" },
+                { text: surface.smallUnitBonusPercent ? `(${formatNumber(surface.smallUnitBonusPercent, 0)}%)` : "(0%)", alignment: "right" },
+                { text: `${formatNumber(surface.smallUnitBonusArea)} mq`, alignment: "right" },
+            ]);
+        }
+    }
+    rows.push([
+        { text: "TOTALE SUPERFICIE CONVENZIONALE", bold: true, colSpan: 3 },
+        {},
+        {},
+        { text: `${formatNumber(surface.total)} mq`, alignment: "right", bold: true },
+    ]);
+
+    return { table: { widths: ["*", 60, 50, 70], body: rows }, layout: lightLines };
+}
+
+function classificationTable({ accord, data }: Pick<PdfInput, "accord" | "data">): Content {
+    const selected = new Set(data.calculation.parameters);
+    const cell = (parameter: ClassificationParameter): Content => ({
+        columns: [
+            { text: selected.has(parameter.number) ? "[X]" : "[  ]", width: 22, bold: true },
+            { text: `${parameter.number}. ${parameter.label}`, width: "*" },
+        ],
+        columnGap: 4,
+        margin: [0, 1, 0, 1],
+    });
+
+    const bathroom: Content = {
+        columns: [
+            { text: data.calculation.noIndoorBathroom ? "[X]" : "[  ]", width: 22, bold: true },
+            { text: `- ${accord.noIndoorBathroomLabel}`, width: "*" },
+        ],
+        columnGap: 4,
+        margin: [0, 4, 0, 2],
+    };
+
+    return {
+        stack: [
+            {
+                columns: [
+                    { stack: accord.coreParameters.map(cell), width: "*" },
+                    { stack: accord.extraParameters.map(cell), width: "*" },
+                ],
+                columnGap: 16,
+            },
+            bathroom,
+        ],
+        fontSize: 8.5,
+    };
+}
+
+function classificationSummary({ result }: Pick<PdfInput, "result">): Content {
+    const classification = result.classification!;
+    return {
+        stack: [
+            {
+                text: `Presenza di n. ${classification.coreCount} parametri da 1 a 7 e di n. ${classification.extraCount} parametri da 8 a 13 o di n. ${classification.totalCount} parametri da 1 a 13`,
+                margin: [0, 6, 0, 2],
+            },
+            { text: [{ text: "FASCIA DI APPARTENENZA: " }, { text: FASCIA_LABELS[classification.fascia], bold: true }] },
+        ],
+    };
+}
+
+/** One line per surcharge of the accord: "Sì"/"No" and the percentage actually applied. */
+function surchargesTable({ accord, result }: Pick<PdfInput, "accord" | "result">): ContentTable {
+    const applied = new Map(result.surcharges.map((surcharge) => [surcharge.id, surcharge.percent]));
+    const rows = accord.surcharges.map((definition): TableCell[] => {
+        const percent = applied.get(definition.id);
+        return [
+            { text: definition.label },
+            { text: percent === undefined ? "NO" : `SÌ (${formatPercent(percent)})`, alignment: "right", bold: true },
+        ];
+    });
+    return { table: { widths: ["*", 90], body: rows }, layout: lightLines };
+}
+
+function signatures(date: string, left: string, right: string): Content {
+    return {
+        stack: [
+            { text: `Como, lì ${date ? formatDate(date) : "……………………"}`, margin: [0, 12, 0, 0] },
+            {
+                columns: [
+                    { text: left, alignment: "center" },
+                    { text: right, alignment: "center" },
+                ],
+                margin: [0, 10, 0, 0],
+            },
+            {
+                columns: [
+                    { text: "………………………………........….", alignment: "center" },
+                    { text: "………………………………........….", alignment: "center" },
+                ],
+                margin: [0, 20, 0, 0],
+            },
+        ],
+        unbreakable: true,
+    };
+}
+
+function header({ logo, kind, data }: Pick<PdfInput, "logo" | "kind" | "data">): Content {
+    return {
+        columns: [
+            { image: logo, width: 120 },
+            { text: `N. ${filled(data.details.number, "……………")}`, alignment: "right", margin: [0, 8, 0, 0] },
+        ],
+        margin: [0, 0, 0, kind === "prospectus" ? 4 : 0],
+    };
+}
+
+function propertyLine({ data }: Pick<PdfInput, "data">) {
+    const { details, calculation } = data;
+    return `Unità abitativa sita in ${filled(details.address)}, piano ${calculation.floor}, int. ${filled(details.unit, "……")}`;
+}
+
+function istatNote({ result }: Pick<PdfInput, "result">): Content {
+    if (!result.istat) return { text: "" };
+    return {
+        text: `Rivalutazione ISTAT applicata: coefficiente ${formatNumber(result.istat.coefficient, 3)} (in vigore dal ${formatDate(result.istat.validFrom)}).`,
+        fontSize: 8,
+        color: "#666666",
+        margin: [0, 6, 0, 0],
+    };
+}
+
+function partialLeasePage(input: PdfInput): Content[] {
+    const { data, result, kind, accord } = input;
+    const partial = result.partialLease!;
+    const partialInput = data.calculation.partialLease!;
+    const totalSurface = result.surface!.total;
+
+    const surfaceRows: TableCell[][] = [
+        keyValueRow("Superficie complessiva dell'unità abitativa", `${formatNumber(totalSurface)} mq`),
+        keyValueRow("Superficie in uso esclusivo al conduttore", `${formatNumber(partialInput.tenantSurface)} mq`),
+        keyValueRow("Superficie in uso esclusivo ad altri conduttori", `${formatNumber(partialInput.otherTenantsSurface)} mq`),
+        keyValueRow("Superficie in uso condiviso tra tutti i conduttori", `${formatNumber(partial.sharedSurface)} mq`),
+    ];
+
+    if (kind === "prospectus") {
+        return [
+            { text: "PROSPETTO DI CALCOLO PER LOCAZIONI PARZIALI", style: "title", pageBreak: "before" },
+            { table: { widths: ["*", 100], body: surfaceRows }, layout: lightLines, margin: [0, 12, 0, 0] },
+            heading("CANONE MENSILE stabilito dall'Accordo Territoriale:"),
+            {
+                text: `minimo ${formatMoney(partial.monthly.min)} / massimo ${formatMoney(partial.monthly.max)}`,
+                bold: true,
+                fontSize: 12,
+            },
+            { text: "I dati sopra riportati sono stati forniti dal locatore.", margin: [0, 12, 0, 0] },
+            signatures(data.details.issueDate, "", ORGANIZATION.name),
+        ];
+    }
+
+    const intro = attestationPremise(input);
+    return [
+        { text: "APPENDICE PER CONTRATTI PARZIALI", style: "title", pageBreak: "before" },
+        { text: intro, margin: [0, 12, 0, 8], alignment: "justify" },
+        { text: "DICHIARA", style: "heading", margin: [0, 8, 0, 4] },
+        { table: { widths: ["*", 100], body: surfaceRows }, layout: lightLines },
+        {
+            text: `Che, quindi, il conduttore usufruisce del ${formatNumber(partial.share * 100)}% della superficie totale dell'unità abitativa.`,
+            margin: [0, 8, 0, 8],
+        },
+        {
+            text: `Tutto ciò premesso, la sottoscritta ${ORGANIZATION.name} dà atto che il canone annuo convenuto dalle parti in ${data.details.partialAgreedAnnualRent > 0 ? formatMoney(data.details.partialAgreedAnnualRent) : "€ ……………"} è conforme all'${accord.agreementTitle} in quanto il ${formatNumber(partial.share * 100)}% del canone minimo annuale previsto dall'Accordo è pari a ${formatMoney(partial.annual.min)} ed il ${formatNumber(partial.share * 100)}% del canone massimo annuale previsto dall'Accordo è pari a ${formatMoney(partial.annual.max)}.`,
+            alignment: "justify",
+        },
+        signatures(data.details.issueDate, "Il richiedente/dichiarante", ORGANIZATION.name),
+    ];
+}
+
+function attestationPremise({ data, accord }: Pick<PdfInput, "data" | "accord">) {
+    const { details, calculation } = data;
+    const registration = details.registration.isPending
+        ? "(in corso di registrazione, essendo i termini non ancora scaduti)"
+        : `registrato il ${details.registration.date ? formatDate(details.registration.date) : "……………"} al n. ${filled(details.registration.number, "………………")} presso l'Agenzia delle Entrate ${filled(details.registration.office, "………………………")}`;
+
+    return `il Sig. ${filled(details.landlord.name)} C.F.: ${filled(details.landlord.taxCode, "…………………")} residente in ${filled(details.landlord.residence)} nella qualità di locatore dell'immobile/porzione di immobile sito in ${filled(details.address)}, piano ${calculation.floor}, int. ${filled(details.unit, "……")}, in forza di contratto stipulato con il Sig. ${filled(details.tenant.name)} C.F.: ${filled(details.tenant.taxCode, "…………………")}, residente in ${filled(details.tenant.residence)} il ${formatDate(calculation.contractDate)} e decorrenza il ${details.leaseStartDate ? formatDate(details.leaseStartDate) : "……………"}${details.registration.isPending ? " " : ", "}${registration}`;
+}
+
+function prospectusContent(input: PdfInput): Content[] {
+    const { accord, data, result } = input;
+    const monthly = result.monthly!;
+
+    return [
+        header(input),
+        {
+            text: `PROSPETTO DI CALCOLO DEL CANONE DI LOCAZIONE IN BASE ALL'${accord.agreementTitle.toUpperCase()} ${accord.referenceText.toUpperCase()}`,
+            style: "title",
+            margin: [0, 8, 0, 8],
+        },
+        { text: propertyLine(input) },
+        ...(accord.zones.length > 0
+            ? [{ text: `MICROZONA ${data.calculation.zone}`, bold: true, margin: [0, 6, 0, 0] } as Content]
+            : []),
+        heading("SUPERFICIE CONVENZIONALE"),
+        surfaceTable(input),
+        heading("ELEMENTI OGGETTIVI DI CLASSIFICAZIONE"),
+        classificationTable(input),
+        classificationSummary(input),
+        heading("ELEMENTI DI MAGGIORAZIONE / RIDUZIONE"),
+        surchargesTable(input),
+        heading("CANONE MENSILE stabilito dall'Accordo Territoriale:"),
+        {
+            text: `minimo ${formatMoney(monthly.min)} / massimo ${formatMoney(monthly.max)}`,
+            bold: true,
+            fontSize: 12,
+        },
+        { text: "I dati sopra riportati sono stati forniti dal locatore.", margin: [0, 10, 0, 0] },
+        istatNote(input),
+        signatures(data.details.issueDate, "", ORGANIZATION.name),
+        ...(result.partialLease ? partialLeasePage(input) : []),
+    ];
+}
+
+function attestationContent(input: PdfInput): Content[] {
+    const { accord, data, result } = input;
+    const perSquareMeter = result.ratePerSquareMeter!;
+    const monthly = result.monthly!;
+    const agreedAnnualRent = data.details.agreedAnnualRent;
+    const totalSurface = result.surface!.total;
+
+    const rentLine =
+        agreedAnnualRent > 0
+            ? `CANONE: ${formatMoney(agreedAnnualRent / 12 / totalSurface)} mq/mese x ${formatNumber(totalSurface)} mq. = ${formatMoney(agreedAnnualRent / 12)} mensili = ${formatMoney(agreedAnnualRent)} annuo`
+            : "CANONE: € …… mq/mese x …… mq. = € …… mensili = € …… annuo";
+
+    return [
+        {
+            columns: [
+                { image: input.logo, width: 120 },
+                {
+                    stack: [
+                        { text: `N. ${filled(data.details.number, "……………")}`, alignment: "right" },
+                        { text: `Contratto stipulato il: ${formatDate(data.calculation.contractDate)}`, alignment: "right", margin: [0, 4, 0, 0] },
+                    ],
+                    margin: [0, 8, 0, 0],
+                },
+            ],
+        },
+        { text: "ATTESTAZIONE DI RISPONDENZA EX D.M. 16/1/2017", style: "title", margin: [0, 8, 0, 8] },
+        {
+            text: `L'${ORGANIZATION.name}, firmataria dell'${accord.agreementTitle} ${accord.referenceText}, in persona del dipendente delegato ${ORGANIZATION.delegate},`,
+            alignment: "justify",
+        },
+        { text: "PREMESSO CHE", style: "heading", margin: [0, 8, 0, 4] },
+        { text: attestationPremise(input), alignment: "justify" },
+        { text: "CHIEDE", style: "heading", margin: [0, 8, 0, 4] },
+        { text: "l'attestazione ex D.M. 16/1/2017, sulla base dei dati di seguito indicati:" },
+        heading("CALCOLO DELLA SUPERFICIE ai sensi dell'art. 2 dell'Accordo Territoriale"),
+        surfaceTable(input),
+        heading("ELEMENTI OGGETTIVI DI CLASSIFICAZIONE"),
+        classificationTable(input),
+        {
+            text: [
+                ...(accord.zones.length > 0 ? [{ text: `MICROZONA ${data.calculation.zone}`, bold: true }, { text: "    " }] : []),
+                { text: `UNITÀ ABITATIVA SITA AL PIANO ${data.calculation.floor}`, bold: true },
+            ],
+            margin: [0, 6, 0, 0],
+        },
+        classificationSummary(input),
+        {
+            text: `CANONE MENSILE stabilito dall'Accordo Territoriale al mq.: minimo ${formatMoney(perSquareMeter.min)} massimo ${formatMoney(perSquareMeter.max)}`,
+            margin: [0, 8, 0, 4],
+        },
+        surchargesTable(input),
+        { text: rentLine, bold: true, margin: [0, 8, 0, 0] },
+        { text: `Canone mensile consentito: ${formatMoney(monthly.min)} - ${formatMoney(monthly.max)}`, fontSize: 8.5, color: "#666666" },
+        istatNote(input),
+        { text: "DICHIARA", style: "heading", margin: [0, 10, 0, 4] },
+        {
+            ol: [
+                "Che i dati sovresposti sono stati dallo stesso rilevati e verificati;",
+                "Di essere consapevole che la presente Attestazione viene rilasciata sulla base di tali dati;",
+                "Di sollevare espressamente l'Organizzazione attestante da qualsivoglia responsabilità eventualmente derivante da errori, omissioni o indicazioni non veritiere in relazione a tali dati.",
+            ],
+            type: "decimal",
+        },
+        {
+            text: `Tutto ciò premesso, l'${ORGANIZATION.name}, come sopra rappresentata, sulla base degli elementi oggettivi sopra dichiarati, anche ai fini dell'ottenimento di eventuali agevolazioni fiscali,`,
+            margin: [0, 10, 0, 4],
+            alignment: "justify",
+        },
+        { text: "ATTESTA", style: "heading", margin: [0, 4, 0, 4] },
+        {
+            text: `che i contenuti economici e normativi del contratto sopra descritto corrispondono a quanto previsto dall'${accord.agreementTitle} vigente, ${accord.referenceText}.`,
+            alignment: "justify",
+        },
+        {
+            text: "Il Locatore conferma di aver letto l'informativa di cui all'art. 13 Reg. UE 679/2016 (Regolamento Generale sulla Protezione dei Dati) circa il trattamento e la conservazione dei dati forniti a Confedilizia-Como per il rilascio della presente Attestazione di Rispondenza.",
+            fontSize: 8.5,
+            margin: [0, 10, 0, 0],
+            alignment: "justify",
+        },
+        signatures(data.details.issueDate, "Il richiedente/dichiarante", ORGANIZATION.name),
+        ...(result.partialLease ? partialLeasePage(input) : []),
+    ];
+}
+
+export function buildDocumentPdf(input: PdfInput): TDocumentDefinitions {
+    return {
+        pageSize: "A4",
+        pageMargins: [40, 28, 40, 28],
+        defaultStyle: { fontSize: 9, lineHeight: 1.1 },
+        styles: {
+            title: { fontSize: 12, bold: true, alignment: "center" },
+            heading: { fontSize: 9.5, bold: true },
+        },
+        info: {
+            title: input.kind === "prospectus" ? "Prospetto di calcolo" : "Attestazione di rispondenza",
+            author: ORGANIZATION.name,
+        },
+        content: input.kind === "prospectus" ? prospectusContent(input) : attestationContent(input),
+    };
+}
+
+export function pdfFileName({ kind, data }: Pick<PdfInput, "kind" | "data">) {
+    const base = kind === "prospectus" ? "prospetto" : "attestazione";
+    const slug = (data.details.address || data.details.number || data.calculation.contractDate)
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[̀-ͯ]/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "")
+        .slice(0, 40);
+    return `${base}-${slug || "documento"}.pdf`;
+}
