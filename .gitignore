@@ -21,3 +21,6 @@ Thumbs.db
 # Vite
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Files with the users to create (see scripts/db/create-user.ts)
+users.local.csv

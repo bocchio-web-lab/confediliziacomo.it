@@ -1,0 +1,16 @@
+[build]
+  command = "npm run build"
+
+  [build.environment]
+    # The database scripts run TypeScript directly, which needs Node 22.18 or later.
+    NODE_VERSION = "22"
+
+# Only the production deploy changes the production schema. Migrations are idempotent
+# (applied ones are recorded and skipped) and never drop anything, so the data survives
+# every build. DATABASE_URL_UNPOOLED must be available to builds in this context.
+#
+# Deploy previews and branch deploys do not migrate: point them to a separate Neon branch
+# (set DATABASE_URL for those contexts in the Netlify UI) and migrate that one from your
+# computer with `npm run db:migrate`, so a preview can never alter production.
+[context.production]
+  command = "npm run db:migrate && npm run build"
