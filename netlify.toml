@@ -6,11 +6,40 @@
     NODE_VERSION = "22"
 
 # Only the production deploy changes the production schema. Migrations are idempotent
-# (applied ones are recorded and skipped) and never drop anything, so the data survives
-# every build. DATABASE_URL_UNPOOLED must be available to builds in this context.
+# (applied ones are recorded and skipped) and a build never resets the database, so the data
+# survives it. Read new migrations before merging: they run on the production data. DATABASE_URL_UNPOOLED must be available to builds in this context.
 #
 # Deploy previews and branch deploys do not migrate: point them to a separate Neon branch
 # (set DATABASE_URL for those contexts in the Netlify UI) and migrate that one from your
 # computer with `npm run db:migrate`, so a preview can never alter production.
 [context.production]
   command = "npm run db:migrate && npm run build"
+
+# The public pages are switched off for now (see src/site-routes/README.md): the old addresses
+# of the first site, and the first version of the private area (/app), lead to the home page.
+[[redirects]]
+  from = "/app"
+  to = "/"
+  status = 301
+
+[[redirects]]
+  from = "/app/*"
+  to = "/:splat"
+  status = 301
+
+[[redirects]]
+  from = "/index.html"
+  to = "/"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/*.htm"
+  to = "/"
+  status = 301
+
+# The PDF files of the old site stay available under /docs (same file names).
+[[redirects]]
+  from = "/Circolari/*"
+  to = "/docs/:splat"
+  status = 301

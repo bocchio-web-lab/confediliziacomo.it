@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import type { Cookies } from "@sveltejs/kit";
 import { dev } from "$app/env";
 import { sql } from "./db.ts";
-import { verifyPassword } from "./password.ts";
+import { hashPassword, verifyPassword } from "./password.ts";
 
 export const SESSION_COOKIE = "session";
 
@@ -45,11 +45,15 @@ export async function authenticate(email: string, password: string): Promise<Log
     if (user.isLocked) return { status: "locked" };
 
     if (!(await verifyPassword(password, user.passwordHash))) {
+        // After a lock has expired the count starts again, otherwise a single mistake would lock the account again.
         await sql`
             update users
-            set failed_login_attempts = failed_login_attempts + 1,
+            set failed_login_attempts = case
+                    when locked_until is not null and locked_until <= now() then 1
+                    else failed_login_attempts + 1
+                end,
                 locked_until = case
-                    when failed_login_attempts + 1 >= ${MAX_FAILED_ATTEMPTS}
+                    when (case when locked_until is not null and locked_until <= now() then 1 else failed_login_attempts + 1 end) >= ${MAX_FAILED_ATTEMPTS}
                     then now() + make_interval(mins => ${LOCK_DURATION_MINUTES})
                 end
             where id = ${user.id}
@@ -115,5 +119,79 @@ function setSessionCookie(cookies: Cookies, token: string, expiresAt: Date) {
         sameSite: "lax",
         secure: !dev,
         expires: expiresAt,
+    });
+}
+
+// --- Registration ------------------------------------------------------------------------
+
+export async function registerUser(input: { email: string; name: string; password: string }) {
+    const [user] = await sql<SessionUser[]>`
+        insert into users (email, name, password_hash)
+        values (${input.email.trim().toLowerCase()}, ${input.name.trim()}, ${await hashPassword(input.password)})
+        on conflict (email) do nothing
+        returning id, email, name
+    `;
+    return user ?? null;
+}
+
+// --- Password reset ----------------------------------------------------------------------
+
+const RESET_TOKEN_DURATION_MINUTES = 60;
+// A new link is not created (nor sent) if one was requested less than this long ago.
+const RESET_REQUEST_INTERVAL_SECONDS = 120;
+
+/**
+ * Creates a single-use token to reset the password of the user with that email.
+ * Returns null when there is no such user or a link was just requested.
+ */
+export async function createPasswordReset(email: string) {
+    const [user] = await sql<SessionUser[]>`
+        select id, email, name from users where email = ${email.trim().toLowerCase()}
+    `;
+    if (!user) return null;
+
+    const [recent] = await sql<{ id: string }[]>`
+        select id from password_reset_tokens
+        where user_id = ${user.id} and created_at > now() - make_interval(secs => ${RESET_REQUEST_INTERVAL_SECONDS})
+    `;
+    if (recent) return null;
+
+    const token = randomBytes(32).toString("base64url");
+    await sql`delete from password_reset_tokens where user_id = ${user.id} or expires_at < now()`;
+    await sql`
+        insert into password_reset_tokens (id, user_id, expires_at)
+        values (${hashToken(token)}, ${user.id}, now() + make_interval(mins => ${RESET_TOKEN_DURATION_MINUTES}))
+    `;
+    return { user, token };
+}
+
+export async function isPasswordResetTokenValid(token: string) {
+    const [row] = await sql<{ id: string }[]>`
+        select id from password_reset_tokens where id = ${hashToken(token)} and expires_at > now()
+    `;
+    return Boolean(row);
+}
+
+/** Sets the new password, ends every session of the user and makes the token unusable. */
+export async function completePasswordReset(token: string, newPassword: string) {
+    const passwordHash = await hashPassword(newPassword);
+
+    return sql.begin(async (transaction) => {
+        const [reset] = await transaction<{ userId: string }[]>`
+            delete from password_reset_tokens
+            where id = ${hashToken(token)} and expires_at > now()
+            returning user_id as "userId"
+        `;
+        if (!reset) return null;
+
+        const [user] = await transaction<SessionUser[]>`
+            update users
+            set password_hash = ${passwordHash}, failed_login_attempts = 0, locked_until = null
+            where id = ${reset.userId}
+            returning id, email, name
+        `;
+        await transaction`delete from sessions where user_id = ${reset.userId}`;
+        await transaction`delete from password_reset_tokens where user_id = ${reset.userId}`;
+        return user;
     });
 }

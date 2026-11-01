@@ -5,6 +5,7 @@
     import * as Alert from "#lib/components/ui/alert/index.ts";
     import * as Card from "#lib/components/ui/card/index.ts";
     import { Separator } from "#lib/components/ui/separator/index.ts";
+    import { helpState } from "./help.svelte.ts";
     import type { AccordDefinition, CalculationResult, Fascia } from "#lib/accords/types.ts";
     import { checkConformity } from "#lib/documents/conformity.ts";
     import type { DocumentDetails, DocumentKind } from "#lib/documents/types.ts";
@@ -116,6 +117,8 @@
                 </div>
             </dl>
 
+            <!-- How the figures are made up: shown with the other explanations. -->
+            {#if helpState.showAll}
             <Separator />
             <div class="space-y-1 text-sm text-muted-foreground">
                 {#if result.rateSource && result.baseRate}
@@ -135,6 +138,7 @@
                 {/if}
                 <p>{accord.ratesNote}</p>
             </div>
+            {/if}
         {/if}
 
         {#if kind === "attestation" && result.monthly}

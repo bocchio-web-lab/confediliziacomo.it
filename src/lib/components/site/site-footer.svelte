@@ -78,7 +78,7 @@
             >
                 Confedilizia nazionale
             </a>
-            <Button href="/app/login" variant="outline" size="sm">Area riservata</Button>
+            <Button href="/login" variant="outline" size="sm">Area riservata</Button>
         </div>
     </div>
 </footer>

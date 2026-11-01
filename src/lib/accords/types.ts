@@ -91,8 +91,8 @@ export interface AccordDefinition {
     /** Sentence fragment used in documents, e.g. "depositato il 06/10/2020". */
     referenceText: string;
     zones: readonly { value: number; label: string }[];
-    /** Hint shown next to the zone field, with links to the documents that help find it. */
-    zoneHelp?: { text: string; links: readonly { label: string; href: string }[] };
+    /** Documents that help find the zone of an address, linked under the zone field. */
+    zoneLinks: readonly { label: string; href: string }[];
     surfaceItems: readonly SurfaceItem[];
     smallUnitBonus: ((netSurface: number, zone: number | null) => SmallUnitBonus) | null;
     coreParameters: readonly ClassificationParameter[];
@@ -143,6 +143,11 @@ export interface CalculationInput {
     /** Numbers of the classification parameters that apply (1-13). */
     parameters: number[];
     noIndoorBathroom: boolean;
+    /**
+     * Lowers the fascia found from the classification, e.g. when the apartment is not in the
+     * excellent state of maintenance required by the maximum fascia. Null keeps the automatic one.
+     */
+    fasciaOverride: Fascia | null;
     surcharges: Record<string, SurchargeValue>;
     partialLease: PartialLease | null;
 }
@@ -192,7 +197,10 @@ export interface CalculationResult {
         coreCount: number;
         extraCount: number;
         totalCount: number;
+        /** The fascia that applies (the override, if one was chosen). */
         fascia: Fascia;
+        /** The fascia that follows from the classification alone. */
+        automaticFascia: Fascia;
     } | null;
     rateSource: string | null;
     baseRate: MoneyRange | null;

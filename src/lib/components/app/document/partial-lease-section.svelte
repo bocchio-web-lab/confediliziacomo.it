@@ -1,5 +1,6 @@
 <script lang="ts">
     import * as Card from "#lib/components/ui/card/index.ts";
+    import { helpState } from "./help.svelte.ts";
     import * as Field from "#lib/components/ui/field/index.ts";
     import { Switch } from "#lib/components/ui/switch/index.ts";
     import type { CalculationResult } from "#lib/accords/types.ts";
@@ -25,10 +26,12 @@
 <Card.Root>
     <Card.Header>
         <Card.Title>Locazione parziale</Card.Title>
-        <Card.Description>
-            È consentita la locazione di porzioni d'immobile: il canone dell'intero appartamento è frazionato in
-            proporzione alla superficie di ciascuna porzione, considerando anche le parti e i servizi condivisi.
-        </Card.Description>
+        {#if helpState.showAll}
+            <Card.Description>
+                È consentita la locazione di porzioni d'immobile: il canone dell'intero appartamento è frazionato in
+                proporzione alla superficie di ciascuna porzione, considerando anche le parti e i servizi condivisi.
+            </Card.Description>
+        {/if}
     </Card.Header>
     <Card.Content>
         <Field.Group>

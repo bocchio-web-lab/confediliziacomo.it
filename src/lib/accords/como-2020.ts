@@ -129,13 +129,10 @@ export const COMO_2020: AccordDefinition = {
     validFrom: "2020-10-06",
     referenceText: "depositato in data 06/10/2020",
     zones: [1, 2, 3, 4, 5, 6].map((value) => ({ value, label: `Microzona ${value}` })),
-    zoneHelp: {
-        text: "L'ubicazione dell'immobile si individua dallo stradario e dalla planimetria delle microzone allegati all'accordo.",
-        links: [
-            { label: "Stradario", href: "/docs/AT1.pdf" },
-            { label: "Planimetria microzone", href: "/docs/AT3.pdf" },
-        ],
-    },
+    zoneLinks: [
+        { label: "Stradario", href: "/docs/AT1.pdf" },
+        { label: "Planimetria microzone", href: "/docs/AT3.pdf" },
+    ],
     surfaceItems: [
         { id: "singleGarage", label: "Autorimessa singola", coefficient: 0.7 },
         { id: "sharedParking", label: "Posto auto in autorimessa comune", coefficient: 0.5 },

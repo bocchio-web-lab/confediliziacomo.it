@@ -5,9 +5,18 @@ create table documents (
     kind document_kind not null,
     territory text not null check (territory in ('city', 'province')),
     accord_id text not null,
-    number text,
+    -- Progressive numbers: one sequence for each kind and territory (see src/lib/documents/numbering.ts).
+    sequence_key text not null,
+    document_number integer not null,
+    -- The date the accord and the ISTAT index are chosen by: the contract date of an attestation,
+    -- the date of a prospectus.
     contract_date date not null,
     title text not null,
+    -- What the list shows and searches: who asked for the document, where, and the search text
+    -- (lower case, no accents: see src/lib/documents/search.ts).
+    applicant_name text not null default '',
+    address text not null default '',
+    search_text text not null default '',
     -- Everything the user typed in the form (calculation input and details).
     input jsonb not null,
     -- Snapshot of the calculation at the time of the last save.
@@ -20,7 +29,15 @@ create table documents (
     deleted_at timestamptz
 );
 
-create index documents_kind_created_at_idx on documents (kind, created_at desc) where deleted_at is null;
+-- The number is unique inside its sequence, also for deleted documents: numbers are never reused.
+create unique index documents_sequence_number_idx on documents (sequence_key, document_number);
+create index documents_created_at_idx on documents (created_at desc) where deleted_at is null;
+
+-- Last number handed out for each sequence.
+create table document_counters (
+    sequence_key text primary key,
+    last_number integer not null
+);
 
 -- Who did what: one row per significant action.
 create table audit_log (

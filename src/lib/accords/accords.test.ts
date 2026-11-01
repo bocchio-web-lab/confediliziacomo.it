@@ -141,3 +141,31 @@ test("Accords are selected by contract date", () => {
     assert.equal(resolveAccord("province", "2003-09-02")?.id, "provincia-2003");
     assert.equal(resolveAccord("province", "2003-09-01"), null);
 });
+
+test("A lower fascia can be chosen, a higher one cannot", () => {
+    const build = (override: "media" | "minima" | null, parameters: number[]) => {
+        const input = emptyCalculationInput(COMO_2020, "2026-10-05");
+        input.zone = 1;
+        input.floor = 2;
+        input.surfaces.net = 80;
+        input.parameters = parameters;
+        input.fasciaOverride = override;
+        return calculate(COMO_2020, input, ISTAT).classification;
+    };
+
+    // 5 of the first 7 and one of the others is the maximum fascia for 60-100 sqm up to the 3rd floor.
+    const maximum = [1, 2, 3, 4, 5, 8];
+    assert.equal(build(null, maximum)?.fascia, "massima");
+    assert.equal(build("media", maximum)?.fascia, "media");
+    assert.equal(build("media", maximum)?.automaticFascia, "massima");
+    assert.equal(build("minima", maximum)?.fascia, "minima");
+
+    // Choosing a higher fascia than the one the parameters give changes nothing.
+    assert.equal(build("media", [1, 2])?.fascia, "minima");
+});
+
+test("Messages name the date the way the document calls it", () => {
+    const input = emptyCalculationInput(COMO_2020);
+    assert.ok(calculate(COMO_2020, input, ISTAT, "data del prospetto").issues[0].includes("data del prospetto"));
+    assert.ok(calculate(COMO_2020, input, ISTAT).issues[0].includes("data di stipula del contratto"));
+});

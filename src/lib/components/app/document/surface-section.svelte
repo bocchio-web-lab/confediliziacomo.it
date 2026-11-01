@@ -1,5 +1,6 @@
 <script lang="ts">
     import * as Card from "#lib/components/ui/card/index.ts";
+    import { helpState } from "./help.svelte.ts";
     import * as Field from "#lib/components/ui/field/index.ts";
     import { NET_SURFACE_ID } from "#lib/accords/calculate.ts";
     import type { AccordDefinition, CalculationResult } from "#lib/accords/types.ts";
@@ -19,9 +20,11 @@
 <Card.Root>
     <Card.Header>
         <Card.Title>Calcolo della superficie</Card.Title>
-        <Card.Description>
-            Superficie convenzionale ai sensi dell'accordo: ogni area conta in percentuale.
-        </Card.Description>
+        {#if helpState.showAll}
+            <Card.Description>
+                Superficie convenzionale ai sensi dell'accordo: ogni area conta in percentuale.
+            </Card.Description>
+        {/if}
     </Card.Header>
     <Card.Content>
         <Field.Group>

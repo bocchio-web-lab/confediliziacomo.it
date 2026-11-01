@@ -10,9 +10,15 @@ export interface PdfInput {
     data: DocumentData;
     /** Must be a complete calculation (no issues). */
     result: CalculationResult;
+    /** Number of the saved document; null while it has not been saved yet. */
+    documentNumber: number | null;
     /** Logo as a data URL. */
     logo: string;
+    /** Signature and stamp as a data URL, printed on prospectuses only. */
+    signature: string | null;
 }
+
+const numberLabel = (documentNumber: number | null) => `N. ${documentNumber ?? "……………"}`;
 
 const BLANK = "…………………………";
 const FASCIA_LABELS: Record<Fascia, string> = { minima: "MINIMA", media: "MEDIA", massima: "MASSIMA" };
@@ -99,15 +105,28 @@ function classificationTable({ accord, data }: Pick<PdfInput, "accord" | "data">
     };
 }
 
-function classificationSummary({ result }: Pick<PdfInput, "result">): Content {
+function classificationSummary({ result, data, kind }: Pick<PdfInput, "result" | "data" | "kind">): Content {
     const classification = result.classification!;
+    const isLowered = classification.fascia !== classification.automaticFascia;
+    // The notes on the fascia are only part of attestations.
+    const notes = kind === "attestation" ? data.details.fasciaNotes : "";
+
     return {
         stack: [
             {
                 text: `Presenza di n. ${classification.coreCount} parametri da 1 a 7 e di n. ${classification.extraCount} parametri da 8 a 13 o di n. ${classification.totalCount} parametri da 1 a 13`,
                 margin: [0, 6, 0, 2],
             },
-            { text: [{ text: "FASCIA DI APPARTENENZA: " }, { text: FASCIA_LABELS[classification.fascia], bold: true }] },
+            {
+                text: [
+                    { text: "FASCIA DI APPARTENENZA: " },
+                    { text: FASCIA_LABELS[classification.fascia], bold: true },
+                    ...(isLowered
+                        ? [{ text: ` (fascia ${FASCIA_LABELS[classification.automaticFascia].toLowerCase()} in base ai parametri, ridotta per lo stato dell'immobile)`, fontSize: 8.5 }]
+                        : []),
+                ],
+            },
+            ...(notes ? [{ text: [{ text: "Note: ", bold: true }, { text: notes }], margin: [0, 3, 0, 0] } as Content] : []),
         ],
     };
 }
@@ -125,7 +144,13 @@ function surchargesTable({ accord, result }: Pick<PdfInput, "accord" | "result">
     return { table: { widths: ["*", 90], body: rows }, layout: lightLines };
 }
 
-function signatures(date: string, left: string, right: string): Content {
+const SIGNATURE_WIDTH = 100;
+// The line to sign is drawn over the lower part of the image of the stamp.
+const SIGNATURE_OVERLAP = 28;
+
+function signatures(date: string, left: string, right: string, signature: string | null = null): Content {
+    const dots: Content = { text: "………………………………........….", alignment: "center" };
+
     return {
         stack: [
             { text: `Como, lì ${date ? formatDate(date) : "……………………"}`, margin: [0, 12, 0, 0] },
@@ -136,23 +161,30 @@ function signatures(date: string, left: string, right: string): Content {
                 ],
                 margin: [0, 10, 0, 0],
             },
-            {
-                columns: [
-                    { text: "………………………………........….", alignment: "center" },
-                    { text: "………………………………........….", alignment: "center" },
-                ],
-                margin: [0, 20, 0, 0],
-            },
+            signature
+                ? {
+                      columns: [
+                          { text: "", width: "*" },
+                          {
+                              stack: [
+                                  { image: signature, width: SIGNATURE_WIDTH, alignment: "center", margin: [0, 2, 0, -SIGNATURE_OVERLAP] },
+                                  dots,
+                              ],
+                              width: "*",
+                          },
+                      ],
+                  }
+                : { columns: [dots, dots], margin: [0, 20, 0, 0] },
         ],
         unbreakable: true,
     };
 }
 
-function header({ logo, kind, data }: Pick<PdfInput, "logo" | "kind" | "data">): Content {
+function header({ logo, kind, documentNumber }: Pick<PdfInput, "logo" | "kind" | "documentNumber">): Content {
     return {
         columns: [
             { image: logo, width: 120 },
-            { text: `N. ${filled(data.details.number, "……………")}`, alignment: "right", margin: [0, 8, 0, 0] },
+            { text: numberLabel(documentNumber), alignment: "right", margin: [0, 8, 0, 0] },
         ],
         margin: [0, 0, 0, kind === "prospectus" ? 4 : 0],
     };
@@ -197,7 +229,7 @@ function partialLeasePage(input: PdfInput): Content[] {
                 fontSize: 12,
             },
             { text: "I dati sopra riportati sono stati forniti dal locatore.", margin: [0, 12, 0, 0] },
-            signatures(data.details.issueDate, "", ORGANIZATION.name),
+            signatures(data.details.issueDate, "", ORGANIZATION.name, input.signature),
         ];
     }
 
@@ -240,6 +272,9 @@ function prospectusContent(input: PdfInput): Content[] {
             margin: [0, 8, 0, 8],
         },
         { text: propertyLine(input) },
+        ...(data.details.landlord.name
+            ? [{ text: `Locatore: ${data.details.landlord.name}`, margin: [0, 2, 0, 0] } as Content]
+            : []),
         ...(accord.zones.length > 0
             ? [{ text: `MICROZONA ${data.calculation.zone}`, bold: true, margin: [0, 6, 0, 0] } as Content]
             : []),
@@ -258,7 +293,7 @@ function prospectusContent(input: PdfInput): Content[] {
         },
         { text: "I dati sopra riportati sono stati forniti dal locatore.", margin: [0, 10, 0, 0] },
         istatNote(input),
-        signatures(data.details.issueDate, "", ORGANIZATION.name),
+        signatures(data.details.issueDate, "", ORGANIZATION.name, input.signature),
         ...(result.partialLease ? partialLeasePage(input) : []),
     ];
 }
@@ -281,7 +316,7 @@ function attestationContent(input: PdfInput): Content[] {
                 { image: input.logo, width: 120 },
                 {
                     stack: [
-                        { text: `N. ${filled(data.details.number, "……………")}`, alignment: "right" },
+                        { text: numberLabel(input.documentNumber), alignment: "right" },
                         { text: `Contratto stipulato il: ${formatDate(data.calculation.contractDate)}`, alignment: "right", margin: [0, 4, 0, 0] },
                     ],
                     margin: [0, 8, 0, 0],
@@ -364,14 +399,14 @@ export function buildDocumentPdf(input: PdfInput): TDocumentDefinitions {
     };
 }
 
-export function pdfFileName({ kind, data }: Pick<PdfInput, "kind" | "data">) {
+export function pdfFileName({ kind, data, documentNumber }: Pick<PdfInput, "kind" | "data" | "documentNumber">) {
     const base = kind === "prospectus" ? "prospetto" : "attestazione";
-    const slug = (data.details.address || data.details.number || data.calculation.contractDate)
+    const slug = (data.details.landlord.name || data.details.address || data.calculation.contractDate)
         .toLowerCase()
         .normalize("NFD")
         .replace(/[̀-ͯ]/g, "")
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-|-$/g, "")
         .slice(0, 40);
-    return `${base}-${slug || "documento"}.pdf`;
+    return `${base}${documentNumber ? `-${documentNumber}` : ""}-${slug || "documento"}.pdf`;
 }

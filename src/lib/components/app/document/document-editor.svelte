@@ -1,18 +1,22 @@
 <script lang="ts">
     import { enhance } from "$app/forms";
     import { Download, Save, Trash2 } from "@lucide/svelte";
-    import { untrack } from "svelte";
+    import { onMount, untrack } from "svelte";
     import { toast } from "svelte-sonner";
 
+    import { Badge } from "#lib/components/ui/badge/index.ts";
     import { Button } from "#lib/components/ui/button/index.ts";
     import * as AlertDialog from "#lib/components/ui/alert-dialog/index.ts";
     import * as Alert from "#lib/components/ui/alert/index.ts";
+    import * as Field from "#lib/components/ui/field/index.ts";
+    import { Switch } from "#lib/components/ui/switch/index.ts";
     import { calculate } from "#lib/accords/calculate.ts";
     import { emptyCalculationInput, sanitizeCalculationInput } from "#lib/accords/input.ts";
     import { accordForForm } from "#lib/accords/registry.ts";
     import type { CalculationResult, IstatIndex, Territory } from "#lib/accords/types.ts";
     import {
         KIND_LABELS,
+        dateNameOf,
         emptyDocumentDetails,
         type DocumentData,
         type DocumentKind,
@@ -20,6 +24,7 @@
     import { todayIso } from "#lib/format.ts";
     import { downloadDocumentPdf } from "#lib/pdf/download-pdf.ts";
     import ClassificationSection from "./classification-section.svelte";
+    import { helpState, loadHelpPreference, setShowAllHelp } from "./help.svelte.ts";
     import GeneralSection from "./general-section.svelte";
     import PartialLeaseSection from "./partial-lease-section.svelte";
     import PartiesSection from "./parties-section.svelte";
@@ -33,21 +38,38 @@
         indices: readonly IstatIndex[];
         /** Present when an existing document is being edited. */
         documentId?: string;
+        /** Number of the existing document. */
+        documentNumber?: number;
+        /** Number a new document will get, if it is saved now. */
+        nextNumber?: number;
         initialData?: DocumentData;
         savedResult?: CalculationResult;
         /** Messages returned by the server when saving failed. */
         issues?: string[];
     }
 
-    let { kind, territory, indices, documentId, initialData, savedResult, issues = [] }: Props = $props();
+    let {
+        kind,
+        territory,
+        indices,
+        documentId,
+        documentNumber,
+        nextNumber,
+        initialData,
+        savedResult,
+        issues = [],
+    }: Props = $props();
 
     const labels = $derived(KIND_LABELS[kind]);
+
+    onMount(loadHelpPreference);
 
     const createInitialData = (): DocumentData => {
         if (initialData) return structuredClone($state.snapshot(initialData)) as DocumentData;
         return {
             calculation: emptyCalculationInput(accordForForm(territory, ""), todayIso()),
             details: { ...emptyDocumentDetails(), issueDate: todayIso() },
+            requestedNumber: null,
         };
     };
 
@@ -55,9 +77,9 @@
     let isSaving = $state(false);
     let isDownloading = $state(false);
 
-    // The accord depends on the contract date: when it changes, the form follows.
+    // The accord depends on the date: when it changes, the form follows.
     const accord = $derived(accordForForm(territory, data.calculation.contractDate));
-    const result = $derived(calculate(accord, data.calculation, indices));
+    const result = $derived(calculate(accord, data.calculation, indices, dateNameOf(kind)));
 
     let currentAccordId = untrack(() => accord.id);
     $effect(() => {
@@ -66,13 +88,25 @@
         data.calculation = sanitizeCalculationInput($state.snapshot(data.calculation), accord);
     });
 
-    const payload = $derived(JSON.stringify($state.snapshot(data)));
+    // A prospectus has a single date: the one of the calculation is also the one printed on it.
+    const exportData = $derived.by(() => {
+        const snapshot = $state.snapshot(data) as DocumentData;
+        if (kind === "prospectus") snapshot.details.issueDate = snapshot.calculation.contractDate;
+        return snapshot;
+    });
+    const payload = $derived(JSON.stringify(exportData));
     const canExport = $derived(result.issues.length === 0);
 
     async function downloadPdf() {
         isDownloading = true;
         try {
-            await downloadDocumentPdf({ kind, accord, data: $state.snapshot(data) as DocumentData, result });
+            await downloadDocumentPdf({
+                kind,
+                accord,
+                data: exportData,
+                result,
+                documentNumber: documentNumber ?? null,
+            });
         } catch (error) {
             console.error(error);
             toast.error("Impossibile generare il PDF.");
@@ -84,10 +118,20 @@
 
 <div class="flex flex-wrap items-end justify-between gap-4">
     <div class="space-y-1">
-        <h1 class="text-2xl font-semibold tracking-tight">
+        <h1 class="flex flex-wrap items-center gap-3 text-2xl font-semibold tracking-tight">
             {documentId ? labels.singular : `Nuovo documento: ${labels.singular.toLowerCase()}`}
+            {#if documentNumber !== undefined}
+                <Badge variant="secondary" class="text-base">N. {documentNumber}</Badge>
+            {/if}
         </h1>
         <p class="text-muted-foreground">{accord.territoryLabel} - {accord.agreementTitle}</p>
+    </div>
+    <div class="flex flex-wrap items-center gap-4">
+        <Field.Field orientation="horizontal" class="w-auto">
+            <Switch id="show-help" checked={helpState.showAll} onCheckedChange={setShowAllHelp} />
+            <Field.Label for="show-help" class="font-normal">Mostra tutti gli aiuti</Field.Label>
+        </Field.Field>
+        <Button href="/" variant="ghost" size="sm">Torna all'elenco</Button>
     </div>
 </div>
 
@@ -113,6 +157,8 @@
             await update({ reset: false });
             isSaving = false;
             if (actionResult.type === "success") toast.success("Documento salvato.");
+            // The reasons are also listed at the top of the page: the message tells the user to look there.
+            if (actionResult.type === "failure") toast.error("Il documento non è stato salvato: controlla i messaggi in alto.");
         };
     }}
     class="grid items-start gap-6 xl:grid-cols-3"
@@ -120,9 +166,9 @@
     <input type="hidden" name="payload" value={payload} />
 
     <div class="space-y-6 xl:col-span-2">
-        <GeneralSection {accord} bind:data />
+        <GeneralSection {kind} {accord} bind:data nextNumber={documentId ? undefined : nextNumber} />
         <SurfaceSection {accord} bind:data {result} />
-        <ClassificationSection {accord} bind:data {result} />
+        <ClassificationSection {kind} {accord} bind:data {result} />
         <SurchargesSection {accord} bind:data />
         <PartialLeaseSection {kind} bind:data {result} />
         {#if kind === "attestation"}
@@ -132,6 +178,13 @@
 
     <div class="space-y-4 xl:sticky xl:top-4">
         <ResultPanel {kind} {accord} {result} details={data.details} savedResult={savedResult ?? null} />
+
+        {#if kind === "prospectus"}
+            <Field.Field orientation="horizontal">
+                <Switch id="show-signature" bind:checked={data.details.showSignature} />
+                <Field.Label for="show-signature" class="font-normal">Firma e timbro nel PDF</Field.Label>
+            </Field.Field>
+        {/if}
 
         <div class="flex flex-wrap gap-2">
             <Button type="submit" disabled={!canExport || isSaving}>
@@ -161,7 +214,8 @@
                 <AlertDialog.Header>
                     <AlertDialog.Title>Eliminare il documento?</AlertDialog.Title>
                     <AlertDialog.Description>
-                        Il documento scompare dall'elenco. L'operazione resta registrata nell'attività recente.
+                        Il documento scompare dall'elenco e il suo numero non viene riassegnato. L'operazione resta
+                        registrata.
                     </AlertDialog.Description>
                 </AlertDialog.Header>
                 <AlertDialog.Footer>

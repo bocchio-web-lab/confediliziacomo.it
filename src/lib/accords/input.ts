@@ -26,6 +26,7 @@ export function emptyCalculationInput(accord: AccordDefinition, contractDate = "
         },
         parameters: [],
         noIndoorBathroom: false,
+        fasciaOverride: null,
         surcharges: Object.fromEntries(
             accord.surcharges.map((definition) => [definition.id, defaultSurchargeValue(definition)]),
         ),
@@ -61,6 +62,7 @@ export function sanitizeCalculationInput(raw: unknown, accord: AccordDefinition)
             ? [...new Set(data.parameters.filter((n): n is number => Number.isInteger(n) && n >= 1 && n <= MAX_PARAMETER_NUMBER))]
             : [],
         noIndoorBathroom: data.noIndoorBathroom === true,
+        fasciaOverride: data.fasciaOverride === "media" || data.fasciaOverride === "minima" ? data.fasciaOverride : null,
         surcharges: Object.fromEntries(
             accord.surcharges.map((definition) => {
                 const value = rawSurcharges[definition.id];

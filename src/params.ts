@@ -5,7 +5,7 @@ import { KIND_SLUGS } from "#lib/documents/types.ts";
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const params = defineParams({
-    documentKind: (param) => (param in KIND_SLUGS ? param : undefined),
-    territory: (param) => (param in TERRITORY_SLUGS ? param : undefined),
+    documentKind: (param) => (Object.hasOwn(KIND_SLUGS, param) ? param : undefined),
+    territory: (param) => (Object.hasOwn(TERRITORY_SLUGS, param) ? param : undefined),
     uuid: (param) => (UUID_PATTERN.test(param) ? param : undefined),
 });

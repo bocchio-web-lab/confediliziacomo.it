@@ -1,6 +1,7 @@
 <script lang="ts">
     import * as Field from "#lib/components/ui/field/index.ts";
     import { Input } from "#lib/components/ui/input/index.ts";
+    import LabelWithHelp from "./label-with-help.svelte";
 
     interface Props {
         id: string;
@@ -8,6 +9,7 @@
         value: string;
         type?: "text" | "date";
         placeholder?: string;
+        /** Explanation of the field, see LabelWithHelp. */
         description?: string;
         required?: boolean;
         disabled?: boolean;
@@ -26,9 +28,6 @@
 </script>
 
 <Field.Field>
-    <Field.Label for={id}>{label}</Field.Label>
+    <LabelWithHelp for={id} help={description}>{label}</LabelWithHelp>
     <Input {id} {type} {placeholder} {required} {disabled} bind:value />
-    {#if description}
-        <Field.Description>{description}</Field.Description>
-    {/if}
 </Field.Field>

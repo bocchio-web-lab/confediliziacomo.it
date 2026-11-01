@@ -1,22 +1,22 @@
-import { redirect } from "@sveltejs/kit";
+import { error, redirect } from "@sveltejs/kit";
 import type { Handle } from "@sveltejs/kit/hooks";
 import { SESSION_COOKIE, validateSession } from "#lib/server/auth.ts";
 
-const PRIVATE_AREA = "/app";
-const PUBLIC_APP_PATHS = new Set(["/app/login", "/app/logout"]);
+// Everything is private, except the pages used to get in and the ISTAT table the Excel workbooks read.
+const PUBLIC_PATHS = ["/login", "/register", "/forgot-password", "/reset-password", "/logout", "/api/istat"];
+
+const isPublic = (pathname: string) =>
+    PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
 
 export const handle: Handle = async ({ event, resolve }) => {
-    const { pathname } = event.url;
-    const isPrivateArea = pathname === PRIVATE_AREA || pathname.startsWith(`${PRIVATE_AREA}/`);
+    const { pathname, search } = event.url;
 
-    // Prerendered public pages have no cookies, so they never reach the database.
-    event.locals.user =
-        isPrivateArea && event.cookies.get(SESSION_COOKIE)
-            ? await validateSession(event.cookies)
-            : null;
+    // Requests without a session cookie never reach the database.
+    event.locals.user = event.cookies.get(SESSION_COOKIE) ? await validateSession(event.cookies) : null;
 
-    if (isPrivateArea && !PUBLIC_APP_PATHS.has(pathname) && !event.locals.user) {
-        redirect(303, `/app/login?redirectTo=${encodeURIComponent(pathname + event.url.search)}`);
+    if (!event.locals.user && !isPublic(pathname)) {
+        if (pathname.startsWith("/api/")) error(401, "Accesso richiesto");
+        redirect(303, pathname === "/" ? "/login" : `/login?redirectTo=${encodeURIComponent(pathname + search)}`);
     }
 
     return resolve(event);

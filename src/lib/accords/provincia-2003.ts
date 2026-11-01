@@ -131,6 +131,7 @@ export const PROVINCIA_2003: AccordDefinition = {
     validFrom: "2003-09-02",
     referenceText: "stipulato in data 02/09/2003",
     zones: [],
+    zoneLinks: [],
     surfaceItems: [
         {
             id: "greenArea",

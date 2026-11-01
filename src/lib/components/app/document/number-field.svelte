@@ -1,11 +1,13 @@
 <script lang="ts">
     import * as Field from "#lib/components/ui/field/index.ts";
     import { Input } from "#lib/components/ui/input/index.ts";
+    import LabelWithHelp from "./label-with-help.svelte";
 
     interface Props {
         id: string;
         label: string;
         value: number;
+        /** Explanation of the field, see LabelWithHelp. */
         description?: string;
         unit?: string;
         max?: number;
@@ -27,7 +29,7 @@
 </script>
 
 <Field.Field>
-    <Field.Label for={id}>{label}</Field.Label>
+    <LabelWithHelp for={id} help={description}>{label}</LabelWithHelp>
     <div class="relative">
         <Input
             {id}
@@ -47,7 +49,4 @@
             </span>
         {/if}
     </div>
-    {#if description}
-        <Field.Description>{description}</Field.Description>
-    {/if}
 </Field.Field>

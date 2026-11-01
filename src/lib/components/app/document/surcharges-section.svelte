@@ -1,5 +1,7 @@
 <script lang="ts">
     import * as Card from "#lib/components/ui/card/index.ts";
+    import { helpState } from "./help.svelte.ts";
+    import LabelWithHelp from "./label-with-help.svelte";
     import * as Field from "#lib/components/ui/field/index.ts";
     import * as Select from "#lib/components/ui/select/index.ts";
     import { Switch } from "#lib/components/ui/switch/index.ts";
@@ -22,10 +24,12 @@
 <Card.Root>
     <Card.Header>
         <Card.Title>Elementi di maggiorazione / riduzione</Card.Title>
-        <Card.Description>
-            Le variazioni si applicano ai canoni minimi e massimi per l'intera durata del contratto e si sommano tra
-            loro.
-        </Card.Description>
+        {#if helpState.showAll}
+            <Card.Description>
+                Le variazioni si applicano ai canoni minimi e massimi per l'intera durata del contratto e si sommano tra
+                loro.
+            </Card.Description>
+        {/if}
     </Card.Header>
     <Card.Content>
         <Field.Group>
@@ -34,7 +38,9 @@
                 {#if definition.kind === "select"}
                     {@const selected = definition.options.find((option) => option.value === surcharges[definition.id])}
                     <Field.Field>
-                        <Field.Label for="surcharge-{definition.id}">{definition.label}</Field.Label>
+                        <LabelWithHelp for="surcharge-{definition.id}" help={definition.description}>
+                            {definition.label}
+                        </LabelWithHelp>
                         <Select.Root
                             type="single"
                             value={String(surcharges[definition.id] ?? "")}
@@ -51,7 +57,6 @@
                                 {/each}
                             </Select.Content>
                         </Select.Root>
-                        <Field.Description>{definition.description}</Field.Description>
                     </Field.Field>
                 {:else if definition.kind === "toggle"}
                     <Field.Field orientation="horizontal">
@@ -62,11 +67,12 @@
                             onCheckedChange={(isChecked) => (surcharges[definition.id] = isChecked)}
                         />
                         <Field.Content>
-                            <Field.Label for="surcharge-{definition.id}">{definition.label}</Field.Label>
-                            <Field.Description>
-                                {definition.description}
-                                {#if !isAvailable}{definition.unavailableReason}{/if}
-                            </Field.Description>
+                            <LabelWithHelp for="surcharge-{definition.id}" help={definition.description}>
+                                {definition.label}
+                            </LabelWithHelp>
+                            {#if !isAvailable}
+                                <p class="text-sm text-muted-foreground">{definition.unavailableReason}</p>
+                            {/if}
                         </Field.Content>
                     </Field.Field>
                 {:else}
@@ -81,11 +87,12 @@
                                 onCheckedChange={(isChecked) => (surcharges[definition.id] = isChecked ? definition.maxPercent : 0)}
                             />
                             <div class="flex-1 space-y-1">
-                                <Field.Label for="surcharge-{definition.id}">{definition.label}</Field.Label>
-                                <Field.Description>
-                                    {definition.description}
-                                    {#if !isAvailable}{definition.unavailableReason}{/if}
-                                </Field.Description>
+                                <LabelWithHelp for="surcharge-{definition.id}" help={definition.description}>
+                                    {definition.label}
+                                </LabelWithHelp>
+                                {#if !isAvailable}
+                                    <p class="text-sm text-muted-foreground">{definition.unavailableReason}</p>
+                                {/if}
                             </div>
                         </div>
                         {#if percent > 0}

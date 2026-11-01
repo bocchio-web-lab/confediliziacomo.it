@@ -3,17 +3,23 @@
     import { Checkbox } from "#lib/components/ui/checkbox/index.ts";
     import * as Card from "#lib/components/ui/card/index.ts";
     import * as Field from "#lib/components/ui/field/index.ts";
+    import * as Select from "#lib/components/ui/select/index.ts";
+    import { helpState } from "./help.svelte.ts";
+    import LabelWithHelp from "./label-with-help.svelte";
     import { Switch } from "#lib/components/ui/switch/index.ts";
+    import { Textarea } from "#lib/components/ui/textarea/index.ts";
+    import { FASCIA_ORDER } from "#lib/accords/calculate.ts";
     import type { AccordDefinition, CalculationResult, Fascia } from "#lib/accords/types.ts";
-    import type { DocumentData } from "#lib/documents/types.ts";
+    import type { DocumentData, DocumentKind } from "#lib/documents/types.ts";
 
     interface Props {
+        kind: DocumentKind;
         accord: AccordDefinition;
         data: DocumentData;
         result: CalculationResult;
     }
 
-    let { accord, data = $bindable(), result }: Props = $props();
+    let { kind, accord, data = $bindable(), result }: Props = $props();
 
     const FASCIA_LABELS: Record<Fascia, string> = {
         minima: "Fascia minima",
@@ -26,6 +32,19 @@
         classification ? accord.thresholds[classification.sizeBand][classification.floorBand] : null,
     );
 
+    const AUTOMATIC = "auto";
+
+    const NO_BATHROOM_HELP =
+        "In assenza di servizi igienici interni si applica sempre la fascia minima e il canone massimo è il minimo aumentato del 5%.";
+    const OVERRIDE_HELP =
+        "La fascia massima vale per immobili in ottimo stato di manutenzione, la media in normale stato. Se l'immobile non è in queste condizioni scegli la fascia inferiore e spiegalo nelle note.";
+    const NOTES_HELP = "Compaiono nell'attestazione, sotto la fascia di appartenenza. Facoltative.";
+
+    // The fascia can only be lowered, e.g. when the apartment is not in the state of maintenance the higher fascia needs.
+    const lowerFasce = $derived(
+        classification ? FASCIA_ORDER.filter((fascia) => FASCIA_ORDER.indexOf(fascia) < FASCIA_ORDER.indexOf(classification.automaticFascia)) : [],
+    );
+
     const toggleParameter = (number: number, isChecked: boolean) => {
         const others = data.calculation.parameters.filter((value) => value !== number);
         data.calculation.parameters = isChecked ? [...others, number] : others;
@@ -35,10 +54,12 @@
 <Card.Root>
     <Card.Header>
         <Card.Title>Elementi oggettivi di classificazione</Card.Title>
-        <Card.Description>
-            Seleziona gli elementi presenti e usufruibili dal conduttore. Dal numero di elementi, dalla superficie
-            calpestabile e dal piano dipende la fascia (minima, media, massima).
-        </Card.Description>
+        {#if helpState.showAll}
+            <Card.Description>
+                Seleziona gli elementi presenti e usufruibili dal conduttore. Dal numero di elementi, dalla superficie
+                calpestabile e dal piano dipende la fascia (minima, media, massima).
+            </Card.Description>
+        {/if}
     </Card.Header>
     <Card.Content>
         <Field.Group>
@@ -66,13 +87,49 @@
             <Field.Field orientation="horizontal">
                 <Switch id="no-indoor-bathroom" bind:checked={data.calculation.noIndoorBathroom} />
                 <Field.Content>
-                    <Field.Label for="no-indoor-bathroom">{accord.noIndoorBathroomLabel}</Field.Label>
-                    <Field.Description>
-                        In assenza di servizi igienici interni si applica sempre la fascia minima e il canone
-                        massimo è il minimo aumentato del 5%.
-                    </Field.Description>
+                    <LabelWithHelp for="no-indoor-bathroom" help={NO_BATHROOM_HELP}>
+                        {accord.noIndoorBathroomLabel}
+                    </LabelWithHelp>
                 </Field.Content>
             </Field.Field>
+            {#if kind === "attestation"}
+                {#if lowerFasce.length > 0 && classification}
+                    <Field.Field>
+                        <LabelWithHelp for="fascia-override" help={OVERRIDE_HELP}>Fascia applicata</LabelWithHelp>
+                        <Select.Root
+                            type="single"
+                            value={data.calculation.fasciaOverride ?? AUTOMATIC}
+                            onValueChange={(value) => (data.calculation.fasciaOverride = value === AUTOMATIC ? null : (value as Fascia))}
+                        >
+                            <Select.Trigger id="fascia-override" class="w-full sm:w-96">
+                                {data.calculation.fasciaOverride
+                                    ? FASCIA_LABELS[data.calculation.fasciaOverride]
+                                    : `Quella dei parametri (${FASCIA_LABELS[classification.automaticFascia].toLowerCase()})`}
+                            </Select.Trigger>
+                            <Select.Content>
+                                <Select.Item value={AUTOMATIC} label="Quella dei parametri">
+                                    Quella dei parametri ({FASCIA_LABELS[classification.automaticFascia].toLowerCase()})
+                                </Select.Item>
+                                {#each lowerFasce as fascia}
+                                    <Select.Item value={fascia} label={FASCIA_LABELS[fascia]}>
+                                        {FASCIA_LABELS[fascia]}
+                                    </Select.Item>
+                                {/each}
+                            </Select.Content>
+                        </Select.Root>
+                    </Field.Field>
+                {/if}
+                <Field.Field>
+                    <LabelWithHelp for="fascia-notes" help={NOTES_HELP}>Note sulla fascia</LabelWithHelp>
+                    <Textarea
+                        id="fascia-notes"
+                        rows={3}
+                        maxlength={800}
+                        placeholder="Es. immobile in normale stato di manutenzione: applicata la fascia media."
+                        bind:value={data.details.fasciaNotes}
+                    />
+                </Field.Field>
+            {/if}
         </Field.Group>
     </Card.Content>
     {#if classification && thresholds}
@@ -84,6 +141,7 @@
                     (totale {classification.totalCount} su 13).
                 </span>
             </div>
+            {#if helpState.showAll}
             <p class="text-muted-foreground">
                 Per questo immobile ({classification.floorBand === "low" ? "fino al 3° piano" : "dal 4° piano"},
                 {classification.sizeBand === "small"
@@ -94,6 +152,7 @@
                 calpestabili): fascia massima con almeno {thresholds.maximumCore} parametri tra i primi 7 e 1 tra
                 8 e 13; fascia media con almeno {thresholds.mediumTotal} parametri su 13.
             </p>
+            {/if}
         </Card.Footer>
     {/if}
 </Card.Root>

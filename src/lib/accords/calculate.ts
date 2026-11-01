@@ -22,6 +22,9 @@ const MONTHS_PER_YEAR = 12;
 export const sizeBandOf = (netSurface: number): SizeBand =>
     netSurface > 100 ? "large" : netSurface >= 60 ? "medium" : "small";
 
+/** From the lowest fascia to the highest. */
+export const FASCIA_ORDER: readonly Fascia[] = ["minima", "media", "massima"];
+
 export const floorBandOf = (floor: number): FloorBand => (floor <= 3 ? "low" : "high");
 
 export const isValidIsoDate = (value: string) =>
@@ -64,10 +67,15 @@ export function surchargePercent(
     }
 }
 
+/**
+ * @param dateName how the reference date is called in the messages shown to the user:
+ *   the contract date for an attestation, the date of the document for a prospectus.
+ */
 export function calculate(
     accord: AccordDefinition,
     input: CalculationInput,
     istatIndices: readonly IstatIndex[],
+    dateName = "data di stipula del contratto",
 ): CalculationResult {
     const issues: string[] = [];
     const warnings: string[] = [];
@@ -91,10 +99,10 @@ export function calculate(
 
     // --- Required data -------------------------------------------------------------------
     if (!isValidIsoDate(input.contractDate)) {
-        issues.push("Inserire la data di stipula del contratto.");
+        issues.push(`Inserire la ${dateName}.`);
     } else if (input.contractDate < accord.validFrom) {
         issues.push(
-            `Il contratto è precedente all'accordo in vigore (${accord.territoryLabel}, dal ${accord.validFrom.split("-").reverse().join("/")}).`,
+            `La ${dateName} è precedente all'accordo in vigore (${accord.territoryLabel}, dal ${accord.validFrom.split("-").reverse().join("/")}).`,
         );
     }
     if (accord.zones.length > 0 && !accord.zones.some((zone) => zone.value === input.zone)) {
@@ -145,12 +153,18 @@ export function calculate(
     const totalCount = coreCount + extraCount;
     const thresholds = accord.thresholds[sizeBand][floorBand];
 
-    let fascia: Fascia = "minima";
+    let automaticFascia: Fascia = "minima";
     if (!input.noIndoorBathroom) {
-        if (coreCount >= thresholds.maximumCore && extraCount >= 1) fascia = "massima";
-        else if (totalCount >= thresholds.mediumTotal) fascia = "media";
+        if (coreCount >= thresholds.maximumCore && extraCount >= 1) automaticFascia = "massima";
+        else if (totalCount >= thresholds.mediumTotal) automaticFascia = "media";
     }
-    result.classification = { sizeBand, floorBand, coreCount, extraCount, totalCount, fascia };
+
+    // An override can only lower the fascia, never raise it.
+    const fascia =
+        input.fasciaOverride && FASCIA_ORDER.indexOf(input.fasciaOverride) < FASCIA_ORDER.indexOf(automaticFascia)
+            ? input.fasciaOverride
+            : automaticFascia;
+    result.classification = { sizeBand, floorBand, coreCount, extraCount, totalCount, fascia, automaticFascia };
 
     // --- Surcharges ----------------------------------------------------------------------
     const surchargeContext: SurchargeContext = { netSurface };
@@ -181,7 +195,7 @@ export function calculate(
     if (accord.usesIstat) {
         const index = findIstatIndex(istatIndices, input.contractDate);
         if (!index) {
-            issues.push("Nessun indice ISTAT disponibile per la data di stipula del contratto.");
+            issues.push(`Nessun indice ISTAT disponibile per la ${dateName}.`);
             return result;
         }
         const isOutdated = index.validFrom.slice(0, 7) < input.contractDate.slice(0, 7);

@@ -1,5 +1,6 @@
 <script lang="ts">
     import * as Card from "#lib/components/ui/card/index.ts";
+    import { helpState } from "./help.svelte.ts";
     import * as Field from "#lib/components/ui/field/index.ts";
     import { Switch } from "#lib/components/ui/switch/index.ts";
     import type { DocumentData } from "#lib/documents/types.ts";
@@ -16,10 +17,12 @@
 <Card.Root>
     <Card.Header>
         <Card.Title>Locatore e conduttore</Card.Title>
-        <Card.Description>
-            Dati che compaiono nelle premesse dell'attestazione. I campi lasciati vuoti vengono stampati come righe da
-            compilare a mano.
-        </Card.Description>
+        {#if helpState.showAll}
+            <Card.Description>
+                Dati che compaiono nelle premesse dell'attestazione. I campi lasciati vuoti vengono stampati come righe da
+                compilare a mano.
+            </Card.Description>
+        {/if}
     </Card.Header>
     <Card.Content>
         <Field.Group>
@@ -46,9 +49,11 @@
 <Card.Root>
     <Card.Header>
         <Card.Title>Contratto e canone convenuto</Card.Title>
-        <Card.Description>
-            Il canone annuo convenuto viene confrontato con le fasce dell'accordo per verificarne la conformità.
-        </Card.Description>
+        {#if helpState.showAll}
+            <Card.Description>
+                Il canone annuo convenuto viene confrontato con le fasce dell'accordo per verificarne la conformità.
+            </Card.Description>
+        {/if}
     </Card.Header>
     <Card.Content>
         <Field.Group>

@@ -1,18 +1,30 @@
 <script lang="ts">
     import * as Card from "#lib/components/ui/card/index.ts";
+    import { helpState } from "./help.svelte.ts";
+    import LabelWithHelp from "./label-with-help.svelte";
     import * as Field from "#lib/components/ui/field/index.ts";
+    import { Input } from "#lib/components/ui/input/index.ts";
     import * as Select from "#lib/components/ui/select/index.ts";
     import type { AccordDefinition } from "#lib/accords/types.ts";
-    import type { DocumentData } from "#lib/documents/types.ts";
+    import type { DocumentData, DocumentKind } from "#lib/documents/types.ts";
     import NumberField from "./number-field.svelte";
     import TextField from "./text-field.svelte";
 
     interface Props {
+        kind: DocumentKind;
         accord: AccordDefinition;
         data: DocumentData;
+        /** Number the new document will get. Only present when the document is not saved yet. */
+        nextNumber?: number;
     }
 
-    let { accord, data = $bindable() }: Props = $props();
+    let { kind, accord, data = $bindable(), nextNumber }: Props = $props();
+
+    const NUMBER_HELP =
+        "Lascialo vuoto: viene assegnato il numero progressivo successivo. Scrivilo solo per inserire un documento già numerato in precedenza.";
+
+    // A manual number this far ahead of the next one is probably a typo.
+    const MANY_NUMBERS_AHEAD = 20;
 
     const zoneLabel = $derived(accord.zones.find((zone) => zone.value === data.calculation.zone)?.label);
 </script>
@@ -20,28 +32,79 @@
 <Card.Root>
     <Card.Header>
         <Card.Title>Dati generali</Card.Title>
-        <Card.Description>
-            Unità abitativa sita a Como o in provincia, con i dati che compaiono nell'intestazione del documento.
-        </Card.Description>
+        {#if helpState.showAll}
+            <Card.Description>
+                {#if kind === "prospectus"}
+                    Dati dell'unità abitativa e di chi richiede il prospetto.
+                {:else}
+                    Dati dell'unità abitativa e date del contratto.
+                {/if}
+            </Card.Description>
+        {/if}
     </Card.Header>
     <Card.Content>
         <Field.Group>
             <div class="grid gap-4 sm:grid-cols-2">
-                <TextField
-                    id="contract-date"
-                    type="date"
-                    label="Data di stipula del contratto"
-                    bind:value={data.calculation.contractDate}
-                    description="Determina l'accordo territoriale applicabile e l'indice ISTAT."
-                    required
-                />
-                <TextField
-                    id="number"
-                    label="Numero (N.)"
-                    placeholder="Facoltativo"
-                    bind:value={data.details.number}
-                />
+                {#if kind === "prospectus"}
+                    <TextField
+                        id="document-date"
+                        type="date"
+                        label="Data del prospetto"
+                        bind:value={data.calculation.contractDate}
+                        description="Determina l'accordo territoriale applicabile e l'indice ISTAT. È la data stampata sul prospetto."
+                        required
+                    />
+                {:else}
+                    <TextField
+                        id="contract-date"
+                        type="date"
+                        label="Data di stipula del contratto"
+                        bind:value={data.calculation.contractDate}
+                        description="Determina l'accordo territoriale applicabile e l'indice ISTAT."
+                        required
+                    />
+                {/if}
+
+                {#if nextNumber !== undefined}
+                    <Field.Field>
+                        <LabelWithHelp for="requested-number" help={NUMBER_HELP}>Numero del documento</LabelWithHelp>
+                        <Input
+                            id="requested-number"
+                            type="number"
+                            min="1"
+                            step="1"
+                            placeholder="Automatico (prossimo: {nextNumber})"
+                            value={data.requestedNumber ?? ""}
+                            oninput={(event) => (data.requestedNumber = event.currentTarget.valueAsNumber || null)}
+                        />
+                        {#if data.requestedNumber !== null && data.requestedNumber > nextNumber + MANY_NUMBERS_AHEAD}
+                            <Field.Description class="font-medium text-destructive">
+                                Il numero è molto più alto del prossimo ({nextNumber}): i documenti successivi
+                                continueranno da qui. Controlla di non aver sbagliato.
+                            </Field.Description>
+                        {/if}
+                    </Field.Field>
+                {/if}
             </div>
+
+            {#if kind === "prospectus"}
+                <TextField
+                    id="applicant-name"
+                    label="Richiedente (locatore)"
+                    placeholder="Nome e cognome"
+                    bind:value={data.details.landlord.name}
+                    description="Serve per ritrovare il prospetto nell'elenco."
+                />
+            {:else}
+                <TextField
+                    id="issue-date"
+                    type="date"
+                    label="Data del documento («Como, lì»)"
+                    bind:value={data.details.issueDate}
+                    description="Lasciala vuota per stampare una riga da compilare a mano."
+                />
+            {/if}
+
             <div class="grid gap-4 sm:grid-cols-3">
                 <div class="sm:col-span-2">
                     <TextField
@@ -80,10 +143,9 @@
                                 {/each}
                             </Select.Content>
                         </Select.Root>
-                        {#if accord.zoneHelp}
-                            <Field.Description>
-                                {accord.zoneHelp.text}
-                                {#each accord.zoneHelp.links as link, index}
+                        {#if accord.zoneLinks.length > 0}
+                            <p class="text-sm text-muted-foreground">
+                                {#each accord.zoneLinks as link, index}
                                     {index > 0 ? " · " : ""}<a
                                         href={link.href}
                                         target="_blank"
@@ -91,18 +153,11 @@
                                         class="underline">{link.label}</a
                                     >
                                 {/each}
-                            </Field.Description>
+                            </p>
                         {/if}
                     </Field.Field>
                 {/if}
             </div>
-            <TextField
-                id="issue-date"
-                type="date"
-                label="Data del documento («Como, lì»)"
-                bind:value={data.details.issueDate}
-                description="Lasciala vuota per stampare una riga da compilare a mano."
-            />
         </Field.Group>
     </Card.Content>
 </Card.Root>
