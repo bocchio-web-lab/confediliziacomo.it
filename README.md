@@ -41,9 +41,10 @@ be reset, not migrated. After a reset there are no users: create them again (see
 ## Documents and numbers
 
 Every document gets an automatic progressive number. There is one sequence for each combination of kind and
-territory (prospetti/attestazioni × Comune/Provincia), numbers are never reused, and a number can be typed by
-hand when a document is created (to keep the numbers of documents made before). The policy is in
-`src/lib/documents/numbering.ts`.
+territory (prospetti/attestazioni × Comune/Provincia), whatever the year: the numbers never start again. Numbers
+are never reused, and a number can be typed by hand when a document is created. The policy is in
+`src/lib/documents/numbering.ts`. The historical Excel files are imported with `scripts/import` (see its README):
+they are numbered again, in order of date, and not with the numbers the association gave them.
 
 The signature and stamp printed on prospetti is `src/lib/server/assets/firma-timbro.png`; it is served only to
 logged-in users (`/api/signature`).
