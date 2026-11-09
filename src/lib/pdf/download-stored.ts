@@ -1,7 +1,7 @@
-import { calculate } from "#lib/accords/calculate.ts";
 import { accordById, accordForForm } from "#lib/accords/registry.ts";
 import type { IstatIndex } from "#lib/accords/types.ts";
-import { dateNameOf, type StoredDocument } from "#lib/documents/types.ts";
+import { calculateDocument } from "#lib/documents/calculation.ts";
+import type { StoredDocument } from "#lib/documents/types.ts";
 import { downloadDocumentPdf } from "./download-pdf.ts";
 
 /**
@@ -14,7 +14,7 @@ export async function downloadStoredDocumentPdf(id: string) {
 
     const { document, indices } = (await response.json()) as { document: StoredDocument; indices: IstatIndex[] };
     const accord = accordById(document.accordId) ?? accordForForm(document.territory, document.contractDate);
-    const result = calculate(accord, document.data.calculation, indices, dateNameOf(document.kind));
+    const result = calculateDocument(accord, document.data, document.kind, indices);
     if (result.issues.length > 0) throw new Error(result.issues.join(" "));
 
     // A prospectus has a single date: the one of the calculation is also the one printed on it.

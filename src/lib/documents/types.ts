@@ -19,10 +19,30 @@ export const KIND_LABELS: Record<DocumentKind, { singular: string; plural: strin
 export const dateNameOf = (kind: DocumentKind) =>
     kind === "prospectus" ? "data del prospetto" : "data di stipula del contratto";
 
+/**
+ * The kind of lease an attestation of the Provincia is for. Agreed leases (3+2) have the rent bound by the accord; so do
+ * the ones for university students, which use the same bands; transitory leases have a free rent, and only the
+ * conformity of the contract to the accord is attested. The attestation of the Comune is for agreed leases only.
+ */
+export type LeaseType = "agreed" | "transitory" | "student";
+
+export const LEASE_TYPES: Record<LeaseType, { label: string; heading: string; hasBoundRent: boolean }> = {
+    agreed: { label: "Contratto agevolato (3+2)", heading: "CONTRATTI DI LOCAZIONE 3+2", hasBoundRent: true },
+    transitory: { label: "Contratto transitorio (canone libero)", heading: "CONTRATTI DI LOCAZIONE TRANSITORI", hasBoundRent: false },
+    student: { label: "Contratto per studenti universitari", heading: "CONTRATTI DI LOCAZIONE UNIVERSITARI", hasBoundRent: true },
+};
+
+/** Only the attestations of the Provincia have more than one kind of lease. */
+export const leaseTypeOf = (kind: DocumentKind, territory: Territory, details: Pick<DocumentDetails, "leaseType">): LeaseType =>
+    kind === "attestation" && territory === "province" ? details.leaseType : "agreed";
+
 export interface Party {
     name: string;
     taxCode: string;
     residence: string;
+    /** Place and date of birth: printed in the attestations of the Provincia. */
+    birthPlace: string;
+    birthDate: string;
 }
 
 export interface Registration {
@@ -55,6 +75,8 @@ export interface DocumentDetails {
     partialAgreedAnnualRent: number;
     /** Free lines about the fascia, e.g. why it was lowered because of the state of the apartment. */
     fasciaNotes: string;
+    /** Attestations of the Provincia only; see `LeaseType`. */
+    leaseType: LeaseType;
 }
 
 export interface DocumentData {
@@ -107,7 +129,7 @@ export function documentLabel({ applicantName, address }: Pick<DocumentSummary, 
         : { primary: address || "Senza nome né indirizzo", secondary: "" };
 }
 
-const emptyParty = (): Party => ({ name: "", taxCode: "", residence: "" });
+const emptyParty = (): Party => ({ name: "", taxCode: "", residence: "", birthPlace: "", birthDate: "" });
 
 export const emptyDocumentDetails = (): DocumentDetails => ({
     address: "",
@@ -121,6 +143,7 @@ export const emptyDocumentDetails = (): DocumentDetails => ({
     agreedAnnualRent: 0,
     partialAgreedAnnualRent: 0,
     fasciaNotes: "",
+    leaseType: "agreed",
 });
 
 const MAX_NOTES_LENGTH = 800;
@@ -137,7 +160,13 @@ const money = (value: unknown) => {
 
 const party = (value: unknown): Party => {
     const data = (typeof value === "object" && value ? value : {}) as Record<string, unknown>;
-    return { name: text(data.name), taxCode: text(data.taxCode, 30), residence: text(data.residence) };
+    return {
+        name: text(data.name),
+        taxCode: text(data.taxCode, 30),
+        residence: text(data.residence),
+        birthPlace: text(data.birthPlace),
+        birthDate: isoDate(data.birthDate),
+    };
 };
 
 /** Cleans the details sent by the browser: wrong types become empty values. */
@@ -162,6 +191,7 @@ export function sanitizeDocumentDetails(raw: unknown): DocumentDetails {
         agreedAnnualRent: money(data.agreedAnnualRent),
         partialAgreedAnnualRent: money(data.partialAgreedAnnualRent),
         fasciaNotes: text(data.fasciaNotes, MAX_NOTES_LENGTH),
+        leaseType: data.leaseType === "transitory" || data.leaseType === "student" ? data.leaseType : "agreed",
     };
 }
 

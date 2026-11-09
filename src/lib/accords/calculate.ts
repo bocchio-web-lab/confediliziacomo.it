@@ -67,6 +67,40 @@ export function surchargePercent(
     }
 }
 
+/** The problems with the date the accord is chosen by. */
+function dateIssues(accord: AccordDefinition, input: CalculationInput, dateName: string) {
+    if (!isValidIsoDate(input.contractDate)) return [`Inserire la ${dateName}.`];
+    if (input.contractDate < accord.validFrom) {
+        return [
+            `La ${dateName} è precedente all'accordo in vigore (${accord.territoryLabel}, dal ${accord.validFrom.split("-").reverse().join("/")}).`,
+        ];
+    }
+    return [];
+}
+
+/**
+ * The result for a lease with a free rent (a transitory one in the Provincia): nothing is calculated, only the date
+ * is checked, since it decides which accord the contract is compared with.
+ */
+export function calculateWithoutRates(accord: AccordDefinition, input: CalculationInput, dateName: string): CalculationResult {
+    return {
+        accordId: accord.id,
+        issues: dateIssues(accord, input, dateName),
+        warnings: [],
+        surface: null,
+        classification: null,
+        rateSource: null,
+        baseRate: null,
+        surcharges: [],
+        totalSurchargePercent: 0,
+        istat: null,
+        ratePerSquareMeter: null,
+        monthly: null,
+        annual: null,
+        partialLease: null,
+    };
+}
+
 /**
  * @param dateName how the reference date is called in the messages shown to the user:
  *   the contract date for an attestation, the date of the document for a prospectus.
@@ -98,13 +132,7 @@ export function calculate(
     };
 
     // --- Required data -------------------------------------------------------------------
-    if (!isValidIsoDate(input.contractDate)) {
-        issues.push(`Inserire la ${dateName}.`);
-    } else if (input.contractDate < accord.validFrom) {
-        issues.push(
-            `La ${dateName} è precedente all'accordo in vigore (${accord.territoryLabel}, dal ${accord.validFrom.split("-").reverse().join("/")}).`,
-        );
-    }
+    issues.push(...dateIssues(accord, input, dateName));
     if (accord.zones.length > 0 && !accord.zones.some((zone) => zone.value === input.zone)) {
         issues.push("Selezionare la microzona.");
     }

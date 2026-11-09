@@ -1,10 +1,10 @@
-import { calculate } from "#lib/accords/calculate.ts";
 import { accordById, accordForForm, resolveAccord } from "#lib/accords/registry.ts";
 import type { CalculationResult, Territory } from "#lib/accords/types.ts";
+import { calculateDocument } from "#lib/documents/calculation.ts";
 import { numberingYear, sequenceKey } from "#lib/documents/numbering.ts";
 import { buildSearchText, searchTerms } from "#lib/documents/search.ts";
 import {
-    dateNameOf,
+    leaseTypeOf,
     sanitizeDocumentData,
     type DocumentData,
     type DocumentKind,
@@ -44,7 +44,10 @@ async function prepareDocument(kind: DocumentKind, territory: Territory, rawData
     // A prospectus has a single date: the one printed on it is also the reference of the calculation.
     if (kind === "prospectus") data.details.issueDate = data.calculation.contractDate;
 
-    const result = calculate(accord, data.calculation, await listIstatIndices(), dateNameOf(kind));
+    // Only the attestations of the Provincia have a kind of lease: for every other document it is the agreed one.
+    data.details.leaseType = leaseTypeOf(kind, territory, data.details);
+
+    const result = calculateDocument(accord, data, kind, await listIstatIndices());
     if (result.issues.length > 0) throw new DocumentValidationError(result.issues);
 
     const title = data.details.landlord.name || data.details.address || "Senza nome né indirizzo";

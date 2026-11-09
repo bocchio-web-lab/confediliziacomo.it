@@ -3,15 +3,22 @@
     import { helpState } from "./help.svelte.ts";
     import * as Field from "#lib/components/ui/field/index.ts";
     import { Switch } from "#lib/components/ui/switch/index.ts";
+    import type { Territory } from "#lib/accords/types.ts";
     import type { DocumentData } from "#lib/documents/types.ts";
     import NumberField from "./number-field.svelte";
     import TextField from "./text-field.svelte";
 
     interface Props {
+        territory: Territory;
+        /** False when the rent is free: it is not compared with the accord. */
+        hasRates: boolean;
         data: DocumentData;
     }
 
-    let { data = $bindable() }: Props = $props();
+    let { territory, hasRates, data = $bindable() }: Props = $props();
+
+    // The attestation of the Provincia also prints where and when the parties were born.
+    const isProvince = $derived(territory === "province");
 </script>
 
 <Card.Root>
@@ -30,16 +37,34 @@
                 <Field.Legend variant="label">Locatore</Field.Legend>
                 <div class="grid gap-4 sm:grid-cols-3">
                     <TextField id="landlord-name" label="Nome e cognome" bind:value={data.details.landlord.name} />
+                    {#if isProvince}
+                        <TextField id="landlord-birth-place" label="Nato a" bind:value={data.details.landlord.birthPlace} />
+                        <TextField id="landlord-birth-date" type="date" label="Nato il" bind:value={data.details.landlord.birthDate} />
+                    {/if}
                     <TextField id="landlord-tax-code" label="Codice fiscale" bind:value={data.details.landlord.taxCode} />
-                    <TextField id="landlord-residence" label="Residenza" bind:value={data.details.landlord.residence} />
+                    <TextField
+                        id="landlord-residence"
+                        label="Residenza"
+                        placeholder={isProvince ? "Comune, CAP, via e numero" : undefined}
+                        bind:value={data.details.landlord.residence}
+                    />
                 </div>
             </Field.Set>
             <Field.Set>
                 <Field.Legend variant="label">Conduttore</Field.Legend>
                 <div class="grid gap-4 sm:grid-cols-3">
                     <TextField id="tenant-name" label="Nome e cognome" bind:value={data.details.tenant.name} />
+                    {#if isProvince}
+                        <TextField id="tenant-birth-place" label="Nato a" bind:value={data.details.tenant.birthPlace} />
+                        <TextField id="tenant-birth-date" type="date" label="Nato il" bind:value={data.details.tenant.birthDate} />
+                    {/if}
                     <TextField id="tenant-tax-code" label="Codice fiscale" bind:value={data.details.tenant.taxCode} />
-                    <TextField id="tenant-residence" label="Residenza" bind:value={data.details.tenant.residence} />
+                    <TextField
+                        id="tenant-residence"
+                        label="Residenza"
+                        placeholder={isProvince ? "Comune, CAP, via e numero" : undefined}
+                        bind:value={data.details.tenant.residence}
+                    />
                 </div>
             </Field.Set>
         </Field.Group>
@@ -51,7 +76,11 @@
         <Card.Title>Contratto e canone convenuto</Card.Title>
         {#if helpState.showAll}
             <Card.Description>
-                Il canone annuo convenuto viene confrontato con le fasce dell'accordo per verificarne la conformità.
+                {#if hasRates}
+                    Il canone annuo convenuto viene confrontato con le fasce dell'accordo per verificarne la conformità.
+                {:else}
+                    Il canone è libero: viene solo stampato nell'attestazione, senza confronto con le fasce.
+                {/if}
             </Card.Description>
         {/if}
     </Card.Header>
@@ -91,7 +120,7 @@
                     <TextField id="registration-number" label="al numero" bind:value={data.details.registration.number} />
                     <TextField
                         id="registration-office"
-                        label="presso l'Agenzia delle Entrate di"
+                        label={isProvince ? "presso l'Ufficio Territoriale di" : "presso l'Agenzia delle Entrate di"}
                         bind:value={data.details.registration.office}
                     />
                 </div>

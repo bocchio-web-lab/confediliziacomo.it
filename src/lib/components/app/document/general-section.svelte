@@ -5,20 +5,24 @@
     import * as Field from "#lib/components/ui/field/index.ts";
     import { Input } from "#lib/components/ui/input/index.ts";
     import * as Select from "#lib/components/ui/select/index.ts";
-    import type { AccordDefinition } from "#lib/accords/types.ts";
-    import type { DocumentData, DocumentKind } from "#lib/documents/types.ts";
+    import type { AccordDefinition, Territory } from "#lib/accords/types.ts";
+    import { LEASE_TYPES, type DocumentData, type DocumentKind, type LeaseType } from "#lib/documents/types.ts";
     import NumberField from "./number-field.svelte";
     import TextField from "./text-field.svelte";
 
     interface Props {
         kind: DocumentKind;
+        territory: Territory;
         accord: AccordDefinition;
         data: DocumentData;
         /** Number the new document will get. Only present when the document is not saved yet. */
         nextNumber?: number;
     }
 
-    let { kind, accord, data = $bindable(), nextNumber }: Props = $props();
+    let { kind, territory, accord, data = $bindable(), nextNumber }: Props = $props();
+
+    // Only the attestations of the Provincia are made for more than one kind of lease.
+    const hasLeaseTypes = $derived(kind === "attestation" && territory === "province");
 
     const NUMBER_HELP =
         "Lascialo vuoto: viene assegnato il numero progressivo successivo. Scrivilo solo per inserire un documento già numerato in precedenza.";
@@ -86,6 +90,32 @@
                     </Field.Field>
                 {/if}
             </div>
+
+            {#if hasLeaseTypes}
+                <Field.Field>
+                    <Field.Label for="lease-type">Tipo di contratto</Field.Label>
+                    <Select.Root
+                        type="single"
+                        value={data.details.leaseType}
+                        onValueChange={(value) => (data.details.leaseType = value as LeaseType)}
+                    >
+                        <Select.Trigger id="lease-type" class="w-full">{LEASE_TYPES[data.details.leaseType].label}</Select.Trigger>
+                        <Select.Content>
+                            {#each Object.entries(LEASE_TYPES) as [value, type]}
+                                <Select.Item {value} label={type.label}>{type.label}</Select.Item>
+                            {/each}
+                        </Select.Content>
+                    </Select.Root>
+                    <Field.Description>
+                        {#if LEASE_TYPES[data.details.leaseType].hasBoundRent}
+                            Il canone resta nelle fasce dell'accordo: l'attestazione ne verifica la conformità e allega il prospetto di
+                            conteggio.
+                        {:else}
+                            Il canone è libero: l'attestazione riguarda solo la conformità normativa, senza calcolo.
+                        {/if}
+                    </Field.Description>
+                </Field.Field>
+            {/if}
 
             {#if kind === "prospectus"}
                 <TextField

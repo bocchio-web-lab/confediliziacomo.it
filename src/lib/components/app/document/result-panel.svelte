@@ -16,11 +16,13 @@
         accord: AccordDefinition;
         result: CalculationResult;
         details: DocumentDetails;
+        /** False for a lease with a free rent: there is nothing to calculate. */
+        hasRates: boolean;
         /** Result stored when the document was last saved, if any. */
         savedResult?: CalculationResult | null;
     }
 
-    let { kind, accord, result, details, savedResult = null }: Props = $props();
+    let { kind, accord, result, details, hasRates, savedResult = null }: Props = $props();
 
     const FASCIA_LABELS: Record<Fascia, string> = {
         minima: "Minima",
@@ -77,6 +79,17 @@
                     Con gli indici ISTAT attuali il canone mensile minimo passa da
                     {formatMoney(savedResult.monthly.min)} a {formatMoney(result.monthly.min)}. Salva per aggiornare il
                     documento.
+                </Alert.Description>
+            </Alert.Root>
+        {/if}
+
+        {#if !hasRates && result.issues.length === 0}
+            <Alert.Root>
+                <CircleCheck />
+                <Alert.Title>Canone libero</Alert.Title>
+                <Alert.Description>
+                    L'accordo lascia alle parti la scelta del canone: l'attestazione riguarda solo la conformità
+                    normativa del contratto e non c'è nulla da calcolare.
                 </Alert.Description>
             </Alert.Root>
         {/if}

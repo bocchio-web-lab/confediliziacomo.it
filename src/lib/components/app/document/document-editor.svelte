@@ -10,14 +10,15 @@
     import * as Alert from "#lib/components/ui/alert/index.ts";
     import * as Field from "#lib/components/ui/field/index.ts";
     import { Switch } from "#lib/components/ui/switch/index.ts";
-    import { calculate } from "#lib/accords/calculate.ts";
     import { emptyCalculationInput, sanitizeCalculationInput } from "#lib/accords/input.ts";
     import { accordForForm } from "#lib/accords/registry.ts";
     import type { CalculationResult, IstatIndex, Territory } from "#lib/accords/types.ts";
+    import { calculateDocument } from "#lib/documents/calculation.ts";
     import {
         KIND_LABELS,
-        dateNameOf,
+        LEASE_TYPES,
         emptyDocumentDetails,
+        leaseTypeOf,
         type DocumentData,
         type DocumentKind,
     } from "#lib/documents/types.ts";
@@ -79,7 +80,9 @@
 
     // The accord depends on the date: when it changes, the form follows.
     const accord = $derived(accordForForm(territory, data.calculation.contractDate));
-    const result = $derived(calculate(accord, data.calculation, indices, dateNameOf(kind)));
+    const leaseType = $derived(leaseTypeOf(kind, territory, data.details));
+    const hasRates = $derived(LEASE_TYPES[leaseType].hasBoundRent);
+    const result = $derived(calculateDocument(accord, data, kind, indices));
 
     let currentAccordId = untrack(() => accord.id);
     $effect(() => {
@@ -166,18 +169,21 @@
     <input type="hidden" name="payload" value={payload} />
 
     <div class="space-y-6 xl:col-span-2">
-        <GeneralSection {kind} {accord} bind:data nextNumber={documentId ? undefined : nextNumber} />
-        <SurfaceSection {accord} bind:data {result} />
-        <ClassificationSection {kind} {accord} bind:data {result} />
-        <SurchargesSection {accord} bind:data />
-        <PartialLeaseSection {kind} bind:data {result} />
+        <GeneralSection {kind} {territory} {accord} bind:data nextNumber={documentId ? undefined : nextNumber} />
+        <!-- A lease with a free rent (transitory, in the Provincia) has nothing to calculate. -->
+        {#if hasRates}
+            <SurfaceSection {accord} bind:data {result} />
+            <ClassificationSection {kind} {accord} bind:data {result} />
+            <SurchargesSection {accord} bind:data />
+            <PartialLeaseSection {kind} bind:data {result} />
+        {/if}
         {#if kind === "attestation"}
-            <PartiesSection bind:data />
+            <PartiesSection {territory} {hasRates} bind:data />
         {/if}
     </div>
 
     <div class="space-y-4 xl:sticky xl:top-4">
-        <ResultPanel {kind} {accord} {result} details={data.details} savedResult={savedResult ?? null} />
+        <ResultPanel {kind} {accord} {result} {hasRates} details={data.details} savedResult={savedResult ?? null} />
 
         {#if kind === "prospectus"}
             <Field.Field orientation="horizontal">
