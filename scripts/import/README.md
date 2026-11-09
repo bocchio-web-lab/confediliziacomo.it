@@ -71,6 +71,10 @@ attestazioni), the users, the sessions and everything else are left alone. Sugge
    would take a number the import is about to use, and the import would fail without changing anything).
 3. Run the check below against production.
 
+The import puts the documents in one sequence (`prospectus:city`, numbers 1 to 547). The numbering of the application
+is yearly: run `npm run db:renumber` after the import (and run the check below *before* it, as it expects these
+numbers).
+
 ## 4. Check the database
 
 ```sh

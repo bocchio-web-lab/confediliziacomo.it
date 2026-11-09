@@ -140,7 +140,7 @@ export const PROVINCIA_2003: AccordDefinition = {
         },
         {
             id: "accessories",
-            label: "Balconi, terrazze, cantine e posti auto",
+            label: "Balconi, terrazze, cantine, solaio e posti auto",
             coefficient: 0.25,
         },
         { id: "singleGarage", label: "Autorimessa singola", coefficient: 0.5 },

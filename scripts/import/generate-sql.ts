@@ -16,7 +16,6 @@ import { calculate, findIstatIndex } from "#lib/accords/calculate.ts";
 import { resolveAccord } from "#lib/accords/registry.ts";
 import type { CalculationResult, Fascia, IstatIndex } from "#lib/accords/types.ts";
 import { FASCIA_ORDER } from "#lib/accords/calculate.ts";
-import { sequenceKey } from "#lib/documents/numbering.ts";
 import { buildSearchText } from "#lib/documents/search.ts";
 import { dateNameOf, sanitizeDocumentData, type DocumentData } from "#lib/documents/types.ts";
 
@@ -55,10 +54,11 @@ interface Extracted {
 // --- Numbering -----------------------------------------------------------------------------------------------------
 
 // The numbers the association gave to its files are not used (they started again every year, and some are
-// repeated): the documents are numbered again, in order of date, in the sequence of the application
-// (src/lib/documents/numbering.ts), so that the ones created from now on continue from the last one.
+// repeated): the documents are numbered again from 1, in order of date, in one sequence. This is the sequence the
+// application had before the numbering became yearly: after the import, `npm run db:renumber` moves the documents
+// (these and the ones made in the application) to the yearly sequences, in order of creation.
 // The old number is kept in the report and in the audit log, to find the original file.
-const SEQUENCE_KEY = sequenceKey("prospectus", "city");
+const SEQUENCE_KEY = "prospectus:city";
 
 // --- Helpers -------------------------------------------------------------------------------------------------------
 

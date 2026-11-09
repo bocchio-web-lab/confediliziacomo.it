@@ -1,7 +1,7 @@
 import { calculate } from "#lib/accords/calculate.ts";
 import { accordById, accordForForm, resolveAccord } from "#lib/accords/registry.ts";
 import type { CalculationResult, Territory } from "#lib/accords/types.ts";
-import { sequenceKey } from "#lib/documents/numbering.ts";
+import { numberingYear, sequenceKey } from "#lib/documents/numbering.ts";
 import { buildSearchText, searchTerms } from "#lib/documents/search.ts";
 import {
     dateNameOf,
@@ -121,10 +121,11 @@ export async function getDocument(id: string, kind?: DocumentKind): Promise<Stor
     return { ...row, data: sanitizeDocumentData(row.data, accord) };
 }
 
-/** The number the next document of the sequence will get, unless another one is saved first. */
+/** The number the next document created now will get, unless another one is saved first. */
 export async function nextDocumentNumber(kind: DocumentKind, territory: Territory) {
     const [counter] = await sql<{ lastNumber: number }[]>`
-        select last_number as "lastNumber" from document_counters where sequence_key = ${sequenceKey(kind, territory)}
+        select last_number as "lastNumber" from document_counters
+        where sequence_key = ${sequenceKey(kind, territory, numberingYear())}
     `;
     return (counter?.lastNumber ?? 0) + 1;
 }
@@ -133,7 +134,7 @@ export async function nextDocumentNumber(kind: DocumentKind, territory: Territor
 
 export async function createDocument(user: SessionUser, kind: DocumentKind, territory: Territory, rawData: unknown) {
     const prepared = await prepareDocument(kind, territory, rawData);
-    const key = sequenceKey(kind, territory);
+    const key = sequenceKey(kind, territory, numberingYear());
     const requestedNumber = prepared.data.requestedNumber;
 
     try {

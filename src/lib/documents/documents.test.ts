@@ -5,7 +5,7 @@ import { COMO_2020 } from "#lib/accords/como-2020.ts";
 import { safeDestination } from "#lib/server/redirect.ts";
 import { buildSearchText, normalizeForSearch, searchTerms } from "./search.ts";
 import { documentLabel, emptyDocumentDetails, sanitizeDocumentData } from "./types.ts";
-import { sequenceKey } from "./numbering.ts";
+import { numberingYear, sequenceKey } from "./numbering.ts";
 
 test("The person comes first in the label, the address follows in brackets", () => {
     assert.deepEqual(documentLabel({ applicantName: "Mario Rossi", address: "Via Roma 1" }), {
@@ -55,14 +55,22 @@ test("The requested number must be a positive whole number", () => {
     for (const invalid of [0, -3, 1.5, "abc", null, undefined]) assert.equal(requested(invalid), null);
 });
 
-test("Every combination of kind and territory has its own sequence", () => {
+test("Every combination of kind, territory and year has its own sequence", () => {
     const keys = [
-        sequenceKey("prospectus", "city"),
-        sequenceKey("prospectus", "province"),
-        sequenceKey("attestation", "city"),
-        sequenceKey("attestation", "province"),
+        sequenceKey("prospectus", "city", 2026),
+        sequenceKey("prospectus", "province", 2026),
+        sequenceKey("attestation", "city", 2026),
+        sequenceKey("attestation", "province", 2026),
+        sequenceKey("prospectus", "city", 2027),
     ];
-    assert.equal(new Set(keys).size, 4);
+    assert.equal(new Set(keys).size, 5);
+});
+
+test("A document is numbered in the Italian year of its creation", () => {
+    assert.equal(numberingYear(new Date("2026-06-15T10:00:00Z")), 2026);
+    // Italy is one hour ahead of Greenwich in winter: 23:30 UTC on 31 December is already the next year there.
+    assert.equal(numberingYear(new Date("2026-12-31T22:30:00Z")), 2026);
+    assert.equal(numberingYear(new Date("2026-12-31T23:30:00Z")), 2027);
 });
 
 test("After the login only paths of this site are opened", () => {
