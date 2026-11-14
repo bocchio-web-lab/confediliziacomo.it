@@ -1,6 +1,15 @@
 import type { Content, ContentTable, TableCell, TDocumentDefinitions } from "pdfmake/interfaces";
 import type { AccordDefinition, CalculationResult, ClassificationParameter, Fascia } from "#lib/accords/types.ts";
-import { LEASE_TYPES, leaseTypeOf, type DocumentData, type DocumentKind, type LeaseType } from "#lib/documents/types.ts";
+import {
+    LEASE_TYPES,
+    landlordsOf,
+    leaseTypeOf,
+    tenantsOf,
+    type DocumentData,
+    type DocumentKind,
+    type LeaseType,
+    type Party,
+} from "#lib/documents/types.ts";
 import { formatDate, formatMoney, formatNumber, formatPercent } from "#lib/format.ts";
 import { ORGANIZATION } from "./organization.ts";
 
@@ -257,8 +266,15 @@ function attestationPremise({ data, accord }: Pick<PdfInput, "data" | "accord">)
         ? "(in corso di registrazione, essendo i termini non ancora scaduti)"
         : `registrato il ${details.registration.date ? formatDate(details.registration.date) : "……………"} al n. ${filled(details.registration.number, "………………")} presso l'Agenzia delle Entrate ${filled(details.registration.office, "………………………")}`;
 
-    return `il Sig. ${filled(details.landlord.name)} C.F.: ${filled(details.landlord.taxCode, "…………………")} residente in ${filled(details.landlord.residence)} nella qualità di locatore dell'immobile/porzione di immobile sito in ${filled(details.address)}, piano ${calculation.floor}, int. ${filled(details.unit, "……")}, in forza di contratto stipulato con il Sig. ${filled(details.tenant.name)} C.F.: ${filled(details.tenant.taxCode, "…………………")}, residente in ${filled(details.tenant.residence)} il ${formatDate(calculation.contractDate)} e decorrenza il ${details.leaseStartDate ? formatDate(details.leaseStartDate) : "……………"}${details.registration.isPending ? " " : ", "}${registration}`;
+    const landlords = landlordsOf(details);
+    const tenants = tenantsOf(details);
+
+    return `${partiesPhrase(landlords, (person) => `${filled(person.name)} C.F.: ${filled(person.taxCode, "…………………")} residente in ${filled(person.residence)}`)} nella qualità di ${landlords.length === 1 ? "locatore" : "locatori"} dell'immobile/porzione di immobile sito in ${filled(details.address)}, piano ${calculation.floor}, int. ${filled(details.unit, "……")}, in forza di contratto stipulato con ${partiesPhrase(tenants, (person) => `${filled(person.name)} C.F.: ${filled(person.taxCode, "…………………")}, residente in ${filled(person.residence)}`)} il ${formatDate(calculation.contractDate)} e decorrenza il ${details.leaseStartDate ? formatDate(details.leaseStartDate) : "……………"}${details.registration.isPending ? " " : ", "}${registration}`;
 }
+
+/** "il Sig. A" for one person, "i Sigg. A; B" for several. */
+const partiesPhrase = (people: Party[], describe: (person: Party) => string) =>
+    people.length === 1 ? `il Sig. ${describe(people[0])}` : `i Sigg. ${people.map(describe).join("; ")}`;
 
 function prospectusContent(input: PdfInput): Content[] {
     const { accord, data, result } = input;
@@ -315,7 +331,8 @@ const PROVINCE_DECREE = "D.M. 30.12.2002";
 const LEASE_LAW: Record<LeaseType, { article: string; description: string }> = {
     agreed: { article: "art. 2, comma 3", description: "ad uso abitativo" },
     transitory: { article: "art. 5, comma 1", description: "ad uso abitativo transitorio" },
-    student: { article: "art. 5, comma 2", description: "ad uso abitativo per studenti universitari" },
+    // The accord is "art. 5, commi 2 e 3": the same as in its title.
+    student: { article: "art. 5, commi 2 e 3", description: "ad uso abitativo per studenti universitari" },
 };
 
 function provincePremise({ data }: Pick<PdfInput, "data">, leaseType: LeaseType) {
@@ -324,8 +341,10 @@ function provincePremise({ data }: Pick<PdfInput, "data">, leaseType: LeaseType)
     const registration = details.registration.isPending
         ? "(in corso di registrazione, essendo i termini non ancora scaduti)"
         : `registrato il ${details.registration.date ? formatDate(details.registration.date) : "……………"} al n. ${filled(details.registration.number, "………………")} presso l'Ufficio Territoriale di ${filled(details.registration.office, "………………………")}`;
-    const party = (person: DocumentData["details"]["landlord"], role: string) =>
-        `il Sig. ${filled(person.name)} nato a ${filled(person.birthPlace, "………………")} il ${person.birthDate ? formatDate(person.birthDate) : "……………"} residente a ${filled(person.residence)} C.F. ${filled(person.taxCode, "…………………")} in qualità di ${role}`;
+    const describe = (person: Party) =>
+        `${filled(person.name)} nato a ${filled(person.birthPlace, "………………")} il ${person.birthDate ? formatDate(person.birthDate) : "……………"} residente a ${filled(person.residence)} C.F. ${filled(person.taxCode, "…………………")}`;
+    const landlords = landlordsOf(details);
+    const tenants = tenantsOf(details);
 
     return (
         `In riferimento al contratto di locazione ${law.description} stipulato ai sensi dell'${law.article}, L. 431/1998 ` +
@@ -333,7 +352,8 @@ function provincePremise({ data }: Pick<PdfInput, "data">, leaseType: LeaseType)
         `stipulato in data ${formatDate(calculation.contractDate)} relativo all'immobile sito in ${filled(details.address)}, ` +
         `piano ${calculation.floor}${details.unit ? `, int. ${details.unit}` : ""} ` +
         `con decorrenza dal ${details.leaseStartDate ? formatDate(details.leaseStartDate) : "……………"} ${registration}, ` +
-        `tra ${party(details.landlord, "locatore")} e ${party(details.tenant, "conduttore")}, ` +
+        `tra ${partiesPhrase(landlords, describe)} in qualità di ${landlords.length === 1 ? "locatore" : "locatori"} ` +
+        `e ${partiesPhrase(tenants, describe)} in qualità di ${tenants.length === 1 ? "conduttore" : "conduttori"}, ` +
         `l'${ORGANIZATION.shortName}, in persona del dipendente delegato ${ORGANIZATION.delegateSurnameFirst},`
     );
 }

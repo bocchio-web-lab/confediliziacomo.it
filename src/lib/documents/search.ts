@@ -7,10 +7,18 @@ export const normalizeForSearch = (value: string) =>
         .replace(/[̀-ͯ]/g, "")
         .toLowerCase();
 
-/** The text a document is searched by: people, address and number. */
+/** The text a document is searched by: people (all the landlords and tenants), address and number. */
 export function buildSearchText(data: DocumentData, documentNumber: number) {
+    const { details } = data;
     return normalizeForSearch(
-        [data.details.landlord.name, data.details.tenant.name, data.details.address, String(documentNumber)]
+        [
+            details.landlord.name,
+            ...details.additionalLandlords.map((party) => party.name),
+            details.tenant.name,
+            ...details.additionalTenants.map((party) => party.name),
+            details.address,
+            String(documentNumber),
+        ]
             .filter(Boolean)
             .join(" "),
     );

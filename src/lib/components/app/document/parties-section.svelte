@@ -1,11 +1,14 @@
 <script lang="ts">
+    import { Plus, Trash2 } from "@lucide/svelte";
+    import { Button } from "#lib/components/ui/button/index.ts";
     import * as Card from "#lib/components/ui/card/index.ts";
     import { helpState } from "./help.svelte.ts";
     import * as Field from "#lib/components/ui/field/index.ts";
     import { Switch } from "#lib/components/ui/switch/index.ts";
     import type { Territory } from "#lib/accords/types.ts";
-    import type { DocumentData } from "#lib/documents/types.ts";
+    import { MAX_ADDITIONAL_PARTIES, emptyParty, type DocumentData } from "#lib/documents/types.ts";
     import NumberField from "./number-field.svelte";
+    import PartyFields from "./party-fields.svelte";
     import TextField from "./text-field.svelte";
 
     interface Props {
@@ -27,7 +30,7 @@
         {#if helpState.showAll}
             <Card.Description>
                 Dati che compaiono nelle premesse dell'attestazione. I campi lasciati vuoti vengono stampati come righe da
-                compilare a mano.
+                compilare a mano. Se i locatori o i conduttori sono più d'uno, aggiungili: compaiono tutti nelle premesse.
             </Card.Description>
         {/if}
     </Card.Header>
@@ -35,37 +38,77 @@
         <Field.Group>
             <Field.Set>
                 <Field.Legend variant="label">Locatore</Field.Legend>
-                <div class="grid gap-4 sm:grid-cols-3">
-                    <TextField id="landlord-name" label="Nome e cognome" bind:value={data.details.landlord.name} />
-                    {#if isProvince}
-                        <TextField id="landlord-birth-place" label="Nato a" bind:value={data.details.landlord.birthPlace} />
-                        <TextField id="landlord-birth-date" type="date" label="Nato il" bind:value={data.details.landlord.birthDate} />
-                    {/if}
-                    <TextField id="landlord-tax-code" label="Codice fiscale" bind:value={data.details.landlord.taxCode} />
-                    <TextField
-                        id="landlord-residence"
-                        label="Residenza"
-                        placeholder={isProvince ? "Comune, CAP, via e numero" : undefined}
-                        bind:value={data.details.landlord.residence}
-                    />
-                </div>
+                <PartyFields id="landlord" bind:party={data.details.landlord} withBirth={isProvince} />
+                {#each data.details.additionalLandlords as _, index}
+                    <div class="space-y-2 border-t pt-4">
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm font-medium">Locatore {index + 2}</span>
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onclick={() => data.details.additionalLandlords.splice(index, 1)}
+                            >
+                                <Trash2 />
+                                Rimuovi
+                            </Button>
+                        </div>
+                        <PartyFields
+                            id="landlord-{index + 2}"
+                            bind:party={data.details.additionalLandlords[index]}
+                            withBirth={isProvince}
+                        />
+                    </div>
+                {/each}
+                {#if data.details.additionalLandlords.length < MAX_ADDITIONAL_PARTIES}
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        class="w-fit"
+                        onclick={() => data.details.additionalLandlords.push(emptyParty())}
+                    >
+                        <Plus />
+                        Aggiungi un altro locatore
+                    </Button>
+                {/if}
             </Field.Set>
             <Field.Set>
                 <Field.Legend variant="label">Conduttore</Field.Legend>
-                <div class="grid gap-4 sm:grid-cols-3">
-                    <TextField id="tenant-name" label="Nome e cognome" bind:value={data.details.tenant.name} />
-                    {#if isProvince}
-                        <TextField id="tenant-birth-place" label="Nato a" bind:value={data.details.tenant.birthPlace} />
-                        <TextField id="tenant-birth-date" type="date" label="Nato il" bind:value={data.details.tenant.birthDate} />
-                    {/if}
-                    <TextField id="tenant-tax-code" label="Codice fiscale" bind:value={data.details.tenant.taxCode} />
-                    <TextField
-                        id="tenant-residence"
-                        label="Residenza"
-                        placeholder={isProvince ? "Comune, CAP, via e numero" : undefined}
-                        bind:value={data.details.tenant.residence}
-                    />
-                </div>
+                <PartyFields id="tenant" bind:party={data.details.tenant} withBirth={isProvince} />
+                {#each data.details.additionalTenants as _, index}
+                    <div class="space-y-2 border-t pt-4">
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm font-medium">Conduttore {index + 2}</span>
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onclick={() => data.details.additionalTenants.splice(index, 1)}
+                            >
+                                <Trash2 />
+                                Rimuovi
+                            </Button>
+                        </div>
+                        <PartyFields
+                            id="tenant-{index + 2}"
+                            bind:party={data.details.additionalTenants[index]}
+                            withBirth={isProvince}
+                        />
+                    </div>
+                {/each}
+                {#if data.details.additionalTenants.length < MAX_ADDITIONAL_PARTIES}
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        class="w-fit"
+                        onclick={() => data.details.additionalTenants.push(emptyParty())}
+                    >
+                        <Plus />
+                        Aggiungi un altro conduttore
+                    </Button>
+                {/if}
             </Field.Set>
         </Field.Group>
     </Card.Content>

@@ -100,7 +100,7 @@ test("The attestation of the Provincia follows the form of the association for e
 
     const student = textOf(provinceDocument("student"));
     assert.match(student, /CONTRATTI DI LOCAZIONE UNIVERSITARI/);
-    assert.match(student, /per studenti universitari stipulato ai sensi dell'art\. 5, comma 2, L\. 431\/1998/);
+    assert.match(student, /per studenti universitari stipulato ai sensi dell'art\. 5, commi 2 e 3, L\. 431\/1998/);
     assert.match(student, /PROSPETTO DI CONTEGGIO DEL CANONE/);
 
     const transitory = textOf(provinceDocument("transitory", false));

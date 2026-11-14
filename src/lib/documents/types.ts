@@ -45,6 +45,23 @@ export interface Party {
     birthDate: string;
 }
 
+/** More landlords or tenants than this are not expected on one contract. */
+export const MAX_ADDITIONAL_PARTIES = 9;
+
+export const isPartyEmpty = (party: Party) =>
+    !party.name && !party.taxCode && !party.residence && !party.birthPlace && !party.birthDate;
+
+/** All the landlords, the first one always (blank, it is printed as lines to fill in), then the ones filled in. */
+export const landlordsOf = (details: Pick<DocumentDetails, "landlord" | "additionalLandlords">) => [
+    details.landlord,
+    ...details.additionalLandlords.filter((party) => !isPartyEmpty(party)),
+];
+
+export const tenantsOf = (details: Pick<DocumentDetails, "tenant" | "additionalTenants">) => [
+    details.tenant,
+    ...details.additionalTenants.filter((party) => !isPartyEmpty(party)),
+];
+
 export interface Registration {
     /** True while the contract is still waiting to be registered. */
     isPending: boolean;
@@ -65,8 +82,12 @@ export interface DocumentDetails {
     landlord: Party;
     /** Prospectuses only: print the signature and stamp of the association. */
     showSignature: boolean;
+    /** Other landlords of the same contract (attestations): the first one is `landlord`. */
+    additionalLandlords: Party[];
     // The fields below are only used by attestations.
     tenant: Party;
+    /** Other tenants of the same contract: the first one is `tenant`. */
+    additionalTenants: Party[];
     /** Start date of the lease. */
     leaseStartDate: string;
     registration: Registration;
@@ -129,15 +150,17 @@ export function documentLabel({ applicantName, address }: Pick<DocumentSummary, 
         : { primary: address || "Senza nome né indirizzo", secondary: "" };
 }
 
-const emptyParty = (): Party => ({ name: "", taxCode: "", residence: "", birthPlace: "", birthDate: "" });
+export const emptyParty = (): Party => ({ name: "", taxCode: "", residence: "", birthPlace: "", birthDate: "" });
 
 export const emptyDocumentDetails = (): DocumentDetails => ({
     address: "",
     unit: "",
     issueDate: "",
     landlord: emptyParty(),
+    additionalLandlords: [],
     showSignature: true,
     tenant: emptyParty(),
+    additionalTenants: [],
     leaseStartDate: "",
     registration: { isPending: false, date: "", number: "", office: "" },
     agreedAnnualRent: 0,
@@ -169,6 +192,13 @@ const party = (value: unknown): Party => {
     };
 };
 
+/** The other landlords or tenants: the ones left blank are dropped, and there are not too many. */
+const parties = (value: unknown): Party[] =>
+    (Array.isArray(value) ? value : [])
+        .map(party)
+        .filter((person) => !isPartyEmpty(person))
+        .slice(0, MAX_ADDITIONAL_PARTIES);
+
 /** Cleans the details sent by the browser: wrong types become empty values. */
 export function sanitizeDocumentDetails(raw: unknown): DocumentDetails {
     const data = (typeof raw === "object" && raw ? raw : {}) as Record<string, unknown>;
@@ -179,8 +209,10 @@ export function sanitizeDocumentDetails(raw: unknown): DocumentDetails {
         unit: text(data.unit, 40),
         issueDate: isoDate(data.issueDate),
         landlord: party(data.landlord),
+        additionalLandlords: parties(data.additionalLandlords),
         showSignature: data.showSignature !== false,
         tenant: party(data.tenant),
+        additionalTenants: parties(data.additionalTenants),
         leaseStartDate: isoDate(data.leaseStartDate),
         registration: {
             isPending: registration.isPending === true,
