@@ -69,7 +69,8 @@
         if (initialData) return structuredClone($state.snapshot(initialData)) as DocumentData;
         return {
             calculation: emptyCalculationInput(accordForForm(territory, ""), todayIso()),
-            details: { ...emptyDocumentDetails(), issueDate: todayIso() },
+            // The date of the document starts blank: it is optional, and an empty one is printed as a line to fill in.
+            details: emptyDocumentDetails(),
             requestedNumber: null,
         };
     };
