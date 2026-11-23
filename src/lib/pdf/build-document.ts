@@ -114,11 +114,11 @@ function classificationTable({ accord, data }: Pick<PdfInput, "accord" | "data">
     };
 }
 
-function classificationSummary({ result, data, kind }: Pick<PdfInput, "result" | "data" | "kind">): Content {
+function classificationSummary({ result, data }: Pick<PdfInput, "result" | "data">): Content {
     const classification = result.classification!;
     const isLowered = classification.fascia !== classification.automaticFascia;
-    // The notes on the fascia are only part of attestations.
-    const notes = kind === "attestation" ? data.details.fasciaNotes : "";
+    // Prospetti and attestazioni alike can have a lowered fascia, and the notes that explain it.
+    const notes = data.details.fasciaNotes;
 
     return {
         stack: [

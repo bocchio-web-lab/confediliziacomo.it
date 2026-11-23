@@ -38,7 +38,9 @@
         "In assenza di servizi igienici interni si applica sempre la fascia minima e il canone massimo è il minimo aumentato del 5%.";
     const OVERRIDE_HELP =
         "La fascia massima vale per immobili in ottimo stato di manutenzione, la media in normale stato. Se l'immobile non è in queste condizioni scegli la fascia inferiore e spiegalo nelle note.";
-    const NOTES_HELP = "Compaiono nell'attestazione, sotto la fascia di appartenenza. Facoltative.";
+    const notesHelp = $derived(
+        `Compaiono ${kind === "attestation" ? "nell'attestazione" : "nel prospetto"}, sotto la fascia di appartenenza. Facoltative.`,
+    );
 
     // The fascia can only be lowered, e.g. when the apartment is not in the state of maintenance the higher fascia needs.
     const lowerFasce = $derived(
@@ -92,44 +94,42 @@
                     </LabelWithHelp>
                 </Field.Content>
             </Field.Field>
-            {#if kind === "attestation"}
-                {#if lowerFasce.length > 0 && classification}
-                    <Field.Field>
-                        <LabelWithHelp for="fascia-override" help={OVERRIDE_HELP}>Fascia applicata</LabelWithHelp>
-                        <Select.Root
-                            type="single"
-                            value={data.calculation.fasciaOverride ?? AUTOMATIC}
-                            onValueChange={(value) => (data.calculation.fasciaOverride = value === AUTOMATIC ? null : (value as Fascia))}
-                        >
-                            <Select.Trigger id="fascia-override" class="w-full sm:w-96">
-                                {data.calculation.fasciaOverride
-                                    ? FASCIA_LABELS[data.calculation.fasciaOverride]
-                                    : `Quella dei parametri (${FASCIA_LABELS[classification.automaticFascia].toLowerCase()})`}
-                            </Select.Trigger>
-                            <Select.Content>
-                                <Select.Item value={AUTOMATIC} label="Quella dei parametri">
-                                    Quella dei parametri ({FASCIA_LABELS[classification.automaticFascia].toLowerCase()})
-                                </Select.Item>
-                                {#each lowerFasce as fascia}
-                                    <Select.Item value={fascia} label={FASCIA_LABELS[fascia]}>
-                                        {FASCIA_LABELS[fascia]}
-                                    </Select.Item>
-                                {/each}
-                            </Select.Content>
-                        </Select.Root>
-                    </Field.Field>
-                {/if}
+            {#if lowerFasce.length > 0 && classification}
                 <Field.Field>
-                    <LabelWithHelp for="fascia-notes" help={NOTES_HELP}>Note sulla fascia</LabelWithHelp>
-                    <Textarea
-                        id="fascia-notes"
-                        rows={3}
-                        maxlength={800}
-                        placeholder="Es. immobile in normale stato di manutenzione: applicata la fascia media."
-                        bind:value={data.details.fasciaNotes}
-                    />
+                    <LabelWithHelp for="fascia-override" help={OVERRIDE_HELP}>Fascia applicata</LabelWithHelp>
+                    <Select.Root
+                        type="single"
+                        value={data.calculation.fasciaOverride ?? AUTOMATIC}
+                        onValueChange={(value) => (data.calculation.fasciaOverride = value === AUTOMATIC ? null : (value as Fascia))}
+                    >
+                        <Select.Trigger id="fascia-override" class="w-full sm:w-96">
+                            {data.calculation.fasciaOverride
+                                ? FASCIA_LABELS[data.calculation.fasciaOverride]
+                                : `Quella dei parametri (${FASCIA_LABELS[classification.automaticFascia].toLowerCase()})`}
+                        </Select.Trigger>
+                        <Select.Content>
+                            <Select.Item value={AUTOMATIC} label="Quella dei parametri">
+                                Quella dei parametri ({FASCIA_LABELS[classification.automaticFascia].toLowerCase()})
+                            </Select.Item>
+                            {#each lowerFasce as fascia}
+                                <Select.Item value={fascia} label={FASCIA_LABELS[fascia]}>
+                                    {FASCIA_LABELS[fascia]}
+                                </Select.Item>
+                            {/each}
+                        </Select.Content>
+                    </Select.Root>
                 </Field.Field>
             {/if}
+            <Field.Field>
+                <LabelWithHelp for="fascia-notes" help={notesHelp}>Note sulla fascia</LabelWithHelp>
+                <Textarea
+                    id="fascia-notes"
+                    rows={3}
+                    maxlength={800}
+                    placeholder="Es. immobile in normale stato di manutenzione: applicata la fascia media."
+                    bind:value={data.details.fasciaNotes}
+                />
+            </Field.Field>
         </Field.Group>
     </Card.Content>
     {#if classification && thresholds}
